@@ -8,6 +8,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
     <!-- SheetJS for Excel parsing -->
     <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+    <!-- html2pdf for PDF generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <style>
         body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
         
@@ -84,7 +86,7 @@
         <!-- VIEW: LOGIN -->
         <div id="view-login" class="max-w-md mx-auto bg-white rounded-xl shadow-lg overflow-hidden mt-10">
             <div class="bg-emerald-600 p-6 text-center text-white">
-                <h2 class="text-2xl font-bold">Portal Penggajian</h2>
+                <h2 class="text-2xl font-bold">Slip Gaji Karyawan</h2>
                 <p class="text-emerald-100 text-sm mt-1">Yayasan Malika Islamic Boarding School</p>
             </div>
             <div class="p-6">
@@ -196,9 +198,9 @@
                     <select id="emp-period-select" class="flex-1 md:w-48 border-gray-300 border rounded-md shadow-sm px-3 py-2 focus:ring-emerald-500 focus:border-emerald-500">
                         <option value="">Pilih Periode Gaji...</option>
                     </select>
-                    <button id="btn-print" class="bg-gray-800 hover:bg-gray-900 text-white px-4 py-2 rounded text-sm font-semibold shadow transition flex items-center gap-2">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
-                        Cetak Slip
+                    <button id="btn-download" class="bg-gray-800 hover:bg-gray-900 text-white px-4 py-2 rounded text-sm font-semibold shadow transition flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                        Download Slip
                     </button>
                 </div>
             </div>
@@ -279,14 +281,9 @@
                     <div class="text-center">
                         <p>Tangerang, <span id="slip-date">19 September 2026</span></p>
                         <p>Bendahara</p>
-                        <img src="ttd-bendahara.png" alt="Ttd Bendahara" class="h-16 mx-auto my-1 object-contain">
+                        <img src="ttd-bendahara.png" alt="Tanda Tangan Bendahara" class="h-16 mx-auto my-1 object-contain">
                         <p class="font-bold underline decoration-1 underline-offset-4">H. Pepep Taufiq</p>
                     </div>
-                </div>
-
-                <!-- System Footer -->
-                <div class="mt-16 text-center text-xs italic text-gray-600 border-t border-gray-300 pt-4">
-                    Dokumen ini diterbitkan otomatis oleh MBS Care dan sah tanpa tanda tangan basah.
                 </div>
             </div>
 
@@ -317,38 +314,14 @@
 
         // Employee Accounts Dictionary mapped by PIN for PIN-only Login
         const employeeAccounts = {
-            "5831": "nur baetiyah",
-            "2047": "megawati",
-            "9163": "wasiyah",
-            "4728": "lutfiana zahwa",
-            "3509": "kurniasih",
-            "7814": "aisyah",
-            "6295": "misi",
-            "1436": "zakia ulfa",
-            "8052": "siti laswiyah",
-            "3971": "ninuk mardiyah",
-            "5640": "sri sundari budinastiti",
-            "2189": "yuli yanah",
-            "7463": "winarsih",
-            "9305": "suprihatin ningsih",
-            "6817": "siti akmaliah",
-            "4526": "yuli andayani",
-            "1094": "nur solehah",
-            "8372": "andi rahayu",
-            "2658": "feby utami",
-            "7149": "yanti",
-            "3860": "neng silfi",
-            "5927": "oni",
-            "8415": "cucu setiawati",
-            "6730": "emmy ameliani kamila",
-            "2296": "agis",
-            "4583": "sapid",
-            "7206": "zaid noor hakim",
-            "3158": "resin",
-            "9642": "asdan",
-            "5071": "rulis saepul ulum",
-            "2384": "indra supriatna",
-            "8760": "sudin"
+            "5831": "nur baetiyah", "2047": "megawati", "9163": "wasiyah", "4728": "lutfiana zahwa",
+            "3509": "kurniasih", "7814": "aisyah", "6295": "misi", "1436": "zakia ulfa",
+            "8052": "siti laswiyah", "3971": "ninuk mardiyah", "5640": "sri sundari budinastiti",
+            "2189": "yuli yanah", "7463": "winarsih", "9305": "suprihatin ningsih", "6817": "siti akmaliah",
+            "4526": "yuli andayani", "1094": "nur solehah", "8372": "andi rahayu", "2658": "feby utami",
+            "7149": "yanti", "3860": "neng silfi", "5927": "oni", "8415": "cucu setiawati",
+            "6730": "emmy ameliani kamila", "2296": "agis", "4583": "sapid", "7206": "zaid noor hakim",
+            "3158": "resin", "9642": "asdan", "5071": "rulis saepul ulum", "2384": "indra supriatna", "8760": "sudin"
         };
 
         window.showToast = function(message, type = 'info') {
@@ -372,35 +345,31 @@
             return parseInt(val.toString().replace(/[^0-9-]/g, ''), 10) || 0;
         }
 
-        if (Object.keys(firebaseConfig).length > 0) {
+        const initAuth = async () => {
             try {
-                app = initializeApp(firebaseConfig);
-                db = getFirestore(app);
-                auth = getAuth(app);
-
-                const initAuth = async () => {
-                    try {
-                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                            const userCred = await signInWithCustomToken(auth, __initial_auth_token);
-                            firestoreUser = userCred.user;
-                        } else {
-                            const userCred = await signInAnonymously(auth);
-                            firestoreUser = userCred.user;
-                        }
-                        isFirebaseReady = true;
-                    } catch (error) {
-                        console.error("Auth error:", error);
-                        isFirebaseReady = false; // Fallback to local storage automatically
-                    }
-                };
-                initAuth();
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    const userCred = await signInWithCustomToken(auth, __initial_auth_token);
+                    firestoreUser = userCred.user;
+                } else {
+                    const userCred = await signInAnonymously(auth);
+                    firestoreUser = userCred.user;
+                }
+                isFirebaseReady = true;
+                console.log("Cloud Database Terhubung.");
             } catch (error) {
-                console.error("Firebase init error:", error);
-                isFirebaseReady = false;
+                console.error("Auth error:", error);
+                showToast("Gagal terhubung ke Cloud. Pastikan koneksi internet stabil.", "error");
             }
+        };
+
+        if (Object.keys(firebaseConfig).length > 0) {
+            app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
+            initAuth();
         } else {
-            console.warn("No Firebase config. Using LocalStorage.");
-            isFirebaseReady = false;
+            console.warn("Konfigurasi Cloud tidak ditemukan.");
+            showToast("Sistem Cloud belum diatur. Gagal memuat aplikasi.", "error");
         }
 
         const views = {
@@ -424,7 +393,6 @@
             }
         }
 
-        // Handle Logout
         btnLogout.addEventListener('click', () => {
             currentUserRole = null;
             currentUserId = null;
@@ -436,9 +404,16 @@
             showToast("Berhasil logout", "success");
         });
 
-        document.getElementById('login-form').addEventListener('submit', (e) => {
+        document.getElementById('login-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             const pass = document.getElementById('password').value.trim();
+            
+            // Pastikan Cloud sudah terhubung sebelum login
+            if (!firestoreUser) {
+                showToast("Menghubungkan ke Cloud Server...", "info");
+                await initAuth();
+                if (!firestoreUser) return; // Hentikan jika masih gagal
+            }
 
             if (pass === '0227') {
                 currentUserRole = 'admin';
@@ -465,7 +440,7 @@
 
         document.getElementById('btn-download-template').addEventListener('click', () => {
             const templateData = [{
-                "NIPMIS": "20250603", "Nama": "Abd. Halim, S.S.I", "Status": "Pegawai Tetap", "Amanah": "Laundry", "Gaji Pokok": 1600000, "Hari Transport": 30, "Rate Transport": 40000, "Total Transport": 1200000, "Tunj. BPJS TK": 28400, "Koreksi": 0, "Pendapatan": 2828400, "Potongan BPJS TK": 28400, "Cicilan": 0, "Potongan": 28400, "Jumlah": 2800000
+                "Amanah": "Laundry", "Gaji Pokok": 1600000, "Transport Kehadiran": 30, "Rate Transport": 40000, "Total Transport": 1200000, "Tunj. BPJS TK": 28400, "Koreksi": 0, "Pendapatan": 2828400, "Potongan BPJS TK": 28400, "Cicilan": 0, "Potongan": 28400, "Jumlah": 2800000, "Nama": "Abd. Halim, S.S.I", "NIPMIS": "20250603", "Status": "Pegawai Tetap"
             }];
             const worksheet = XLSX.utils.json_to_sheet(templateData);
             const workbook = XLSX.utils.book_new();
@@ -499,45 +474,82 @@
                             return 0;
                         };
 
-                        const gapok = getVal(["Gaji Pokok"]);
-                        const hariTrans = getVal(["Hari Transport", "Hari"]);
-                        const rateTrans = getVal(["Rate Transport", "Rate"]);
-                        const totalTrans = getVal(["Total Transport", "Transport Kehadiran"]);
-                        const tunjBpjs = getVal(["Tunj. BPJS TK", "Tunj BPJS TK"]);
+                        const gaji_pokok = getVal(["Gaji Pokok"]);
+                        const transport_hari = getVal(["Transport Kehadiran", "Hari Transport", "Hari"]);
+                        
+                        // Menangani kolom merged cell pada Excel (dimana header rate dan total transport kosong/hidden)
+                        // SheetJS otomatis menamai kolom kosong dengan __EMPTY dan __EMPTY_1
+                        let transport_rate = getVal(["Rate Transport", "Rate"]);
+                        if (transport_rate === 0 && row["__EMPTY"] !== undefined) {
+                            transport_rate = cleanNumber(row["__EMPTY"]);
+                        }
+                        
+                        let transport_total = getVal(["Total Transport"]);
+                        if (transport_total === 0 && row["__EMPTY_1"] !== undefined) {
+                            transport_total = cleanNumber(row["__EMPTY_1"]);
+                        }
+                        
+                        // Validasi silang matematika agar 100% aman
+                        if (transport_total === 0 && transport_hari > 0 && transport_rate > 0) {
+                            transport_total = transport_hari * transport_rate;
+                        }
+                        if (transport_rate === 0 && transport_hari > 0 && transport_total > 0) {
+                            transport_rate = Math.floor(transport_total / transport_hari);
+                        }
+
+                        const tunj_bpjs = getVal(["Tunj. BPJS TK", "Tunj BPJS TK"]);
                         const koreksi = getVal(["Koreksi"]);
-                        const potBpjs = getVal(["Potongan BPJS TK", "Pot BPJS TK"]);
+                        
+                        // PENDAPATAN KOTOR (Coba ambil dari Excel, jika gagal hitung otomatis)
+                        let total_pendapatan = getVal(["Pendapatan"]);
+                        const kalkulasi_pendapatan = gaji_pokok + transport_total + tunj_bpjs + koreksi;
+                        if (total_pendapatan === 0 || total_pendapatan !== kalkulasi_pendapatan) {
+                            total_pendapatan = kalkulasi_pendapatan;
+                        }
+
+                        // POTONGAN
+                        const pot_bpjs = getVal(["Potongan BPJS TK", "Pot BPJS TK"]);
                         const cicilan = getVal(["Cicilan"]);
                         
-                        const calcPendapatan = gapok + totalTrans + tunjBpjs + koreksi;
-                        const calcPotongan = potBpjs + cicilan;
-                        const calcJumlah = calcPendapatan - calcPotongan;
+                        let total_potongan = getVal(["Potongan"]);
+                        const kalkulasi_potongan = pot_bpjs + cicilan;
+                        if (total_potongan === 0 || total_potongan !== kalkulasi_potongan) {
+                            total_potongan = kalkulasi_potongan;
+                        }
+
+                        // SISA GAJI BERSIH
+                        let total_bersih = getVal(["Jumlah"]);
+                        const kalkulasi_bersih = total_pendapatan - total_potongan;
+                        if (total_bersih === 0 || total_bersih !== kalkulasi_bersih) {
+                            total_bersih = kalkulasi_bersih;
+                        }
 
                         return {
                             nipmis: String(row["NIPMIS"] || ""),
                             nama: row["Nama"] || "Tanpa Nama",
                             status: row["Status"] || "-",
                             amanah: row["Amanah"] || "-",
-                            gaji_pokok: gapok,
-                            transport_hari: hariTrans,
-                            transport_rate: rateTrans,
-                            transport_total: totalTrans,
-                            tunj_bpjs: tunjBpjs,
-                            koreksi: koreksi,
-                            total_pendapatan: calcPendapatan,
-                            pot_bpjs: potBpjs,
-                            cicilan: cicilan,
-                            total_potongan: calcPotongan,
-                            total_bersih: calcJumlah
+                            gaji_pokok,
+                            transport_hari,
+                            transport_rate,
+                            transport_total,
+                            tunj_bpjs,
+                            koreksi,
+                            total_pendapatan,
+                            pot_bpjs,
+                            cicilan,
+                            total_potongan,
+                            total_bersih
                         };
-                    }).filter(r => r.nipmis !== ""); 
+                    });
 
                     if (parsedExcelData.length === 0) {
-                        showToast("Format kolom tidak sesuai atau NIPMIS kosong.", "error");
+                        showToast("Format kolom tidak sesuai.", "error");
                         return;
                     }
 
                     renderPreviewTable();
-                    showToast(`${parsedExcelData.length} data berhasil dibaca.`, "success");
+                    showToast(`${parsedExcelData.length} data berhasil dibaca & dihitung ualng.`, "success");
 
                 } catch (error) {
                     console.error(error);
@@ -584,64 +596,48 @@
 
             const btn = document.getElementById('btn-publish');
             btn.disabled = true;
-            btn.textContent = "Menyimpan...";
+            btn.textContent = "Menyimpan ke Cloud...";
 
             try {
-                if (isFirebaseReady && db && firestoreUser) {
-                    // MODE CLOUD FIRESTORE
-                    const salariesRef = collection(db, 'artifacts', appId, 'public', 'data', 'salaries');
-                    const batch = writeBatch(db);
-
-                    parsedExcelData.forEach(item => {
-                        const docId = `${currentUploadPeriodId}_${item.nipmis}`;
-                        const docRef = doc(salariesRef, docId);
-                        batch.set(docRef, {
-                            periodId: currentUploadPeriodId, periodName: currentUploadPeriodName,
-                            ...item, timestamp: new Date().toISOString()
-                        });
-                    });
-
-                    await batch.commit();
-
-                    const periodsRef = doc(db, 'artifacts', appId, 'public', 'data', 'periods', currentUploadPeriodId);
-                    await setDoc(periodsRef, { 
-                        id: currentUploadPeriodId, name: currentUploadPeriodName,
-                        count: parsedExcelData.length, date: new Date().toISOString()
-                    });
-
-                    showToast("Data gaji dipublikasikan ke server!", "success");
-                } else {
-                    // MODE LOKAL BROWSER (Fallback)
-                    let localSalaries = JSON.parse(localStorage.getItem('mbs_salaries') || '[]');
-                    let localPeriods = JSON.parse(localStorage.getItem('mbs_periods') || '[]');
-                    
-                    parsedExcelData.forEach(item => {
-                        localSalaries = localSalaries.filter(s => !(s.periodId === currentUploadPeriodId && s.nipmis === item.nipmis));
-                        localSalaries.push({
-                            periodId: currentUploadPeriodId, periodName: currentUploadPeriodName,
-                            ...item, timestamp: new Date().toISOString()
-                        });
-                    });
-                    localStorage.setItem('mbs_salaries', JSON.stringify(localSalaries));
-                    
-                    localPeriods = localPeriods.filter(p => p.id !== currentUploadPeriodId);
-                    localPeriods.push({
-                        id: currentUploadPeriodId, name: currentUploadPeriodName,
-                        count: parsedExcelData.length, date: new Date().toISOString()
-                    });
-                    localStorage.setItem('mbs_periods', JSON.stringify(localPeriods));
-
-                    showToast("Disimpan di mode lokal (Offline)", "success");
+                if (!firestoreUser) {
+                    await initAuth();
+                    if (!firestoreUser) throw new Error("Akses Cloud ditolak.");
                 }
 
+                const salariesRef = collection(db, 'artifacts', appId, 'public', 'data', 'salaries');
+                const batch = writeBatch(db);
+
+                parsedExcelData.forEach(item => {
+                    // ID unik per slip: tahun-bulan_namakaryawan (hilangkan spasi)
+                    const cleanName = item.nama.replace(/[^a-zA-Z0-9]/g, '').toLowerCase() || `noname-${Math.random()}`;
+                    const docId = `${currentUploadPeriodId}_${cleanName}`;
+                    const docRef = doc(salariesRef, docId);
+                    batch.set(docRef, {
+                        periodId: currentUploadPeriodId, 
+                        periodName: currentUploadPeriodName,
+                        ...item, 
+                        timestamp: new Date().toISOString()
+                    });
+                });
+
+                await batch.commit();
+
+                // Simpan rekap periode
+                const periodsRef = doc(db, 'artifacts', appId, 'public', 'data', 'periods', currentUploadPeriodId);
+                await setDoc(periodsRef, { 
+                    id: currentUploadPeriodId, name: currentUploadPeriodName,
+                    count: parsedExcelData.length, date: new Date().toISOString()
+                });
+
+                showToast("Berhasil! Data telah tersinkronisasi ke Cloud secara real-time.", "success");
                 parsedExcelData = [];
                 document.getElementById('preview-section').classList.add('hidden');
                 document.getElementById('excel-file').value = "";
-                loadHistory();
+                // History otomatis dimuat ulang oleh onSnapshot
 
             } catch (error) {
                 console.error("Publish Error:", error);
-                showToast("Gagal menyimpan: " + error.message, "error");
+                showToast("Gagal menyimpan ke Cloud: " + error.message, "error");
             } finally {
                 btn.disabled = false;
                 btn.textContent = "Simpan & Publikasikan ke Karyawan";
@@ -667,56 +663,59 @@
                 el.innerHTML = `
                     <div>
                         <p class="font-bold text-gray-800">${data.name}</p>
-                        <p class="text-xs text-gray-500">${data.count} Karyawan tersimpan</p>
+                        <p class="text-xs text-gray-500">${data.count} Karyawan tersinkronisasi ke Cloud</p>
                     </div>
-                    <span class="bg-emerald-100 text-emerald-800 text-xs font-semibold px-2.5 py-0.5 rounded">Terkirim</span>
+                    <span class="bg-emerald-100 text-emerald-800 text-xs font-semibold px-2.5 py-0.5 rounded">Real-time</span>
                 `;
                 list.appendChild(el);
             });
         }
 
         function loadHistory() {
-            if (isFirebaseReady && db && firestoreUser) {
-                const periodsRef = collection(db, 'artifacts', appId, 'public', 'data', 'periods');
-                onSnapshot(periodsRef, (snapshot) => {
-                    const docs = [];
-                    snapshot.forEach(doc => docs.push(doc.data()));
-                    renderHistoryListUI(docs);
-                }, (error) => {
-                    console.error("History fetch error:", error);
-                    // fallback to local on error
-                    renderHistoryListUI(JSON.parse(localStorage.getItem('mbs_periods') || '[]'));
-                });
-            } else {
-                renderHistoryListUI(JSON.parse(localStorage.getItem('mbs_periods') || '[]'));
-            }
+            if (!firestoreUser) return;
+            const periodsRef = collection(db, 'artifacts', appId, 'public', 'data', 'periods');
+            
+            // onSnapshot memantau data Cloud secara langsung
+            onSnapshot(periodsRef, (snapshot) => {
+                const docs = [];
+                snapshot.forEach(doc => docs.push(doc.data()));
+                renderHistoryListUI(docs);
+            }, (error) => {
+                console.error("History fetch error:", error);
+                showToast("Gagal memuat riwayat dari Cloud", "error");
+            });
         }
 
-        function fetchEmployeeData() {
+        async function fetchEmployeeData() {
             if (!currentUserId) return;
+            
+            document.getElementById('slip-empty-state').textContent = "Mengambil data dari Cloud...";
 
-            const processEmployeeDocs = (docs) => {
-                allPublishedSalaries = docs.filter(data => {
-                    const isNipmisMatch = data.nipmis === currentUserId;
-                    const isNameMatch = data.nama && data.nama.toLowerCase().includes(currentUserId.toLowerCase());
-                    return isNipmisMatch || isNameMatch;
-                });
-                populateEmployeePeriods();
-            };
-
-            if (isFirebaseReady && db && firestoreUser) {
-                const salariesRef = collection(db, 'artifacts', appId, 'public', 'data', 'salaries');
-                getDocs(salariesRef).then((snapshot) => {
-                    const docs = [];
-                    snapshot.forEach(doc => docs.push(doc.data()));
-                    processEmployeeDocs(docs);
-                }).catch((error) => {
-                    console.error("Fetch employee data error:", error);
-                    processEmployeeDocs(JSON.parse(localStorage.getItem('mbs_salaries') || '[]'));
-                });
-            } else {
-                processEmployeeDocs(JSON.parse(localStorage.getItem('mbs_salaries') || '[]'));
+            if (!firestoreUser) {
+                await initAuth();
+                if (!firestoreUser) {
+                    showToast("Koneksi Cloud terputus.", "error");
+                    return;
+                }
             }
+
+            const salariesRef = collection(db, 'artifacts', appId, 'public', 'data', 'salaries');
+            getDocs(salariesRef).then((snapshot) => {
+                const docs = [];
+                snapshot.forEach(doc => docs.push(doc.data()));
+                
+                // Cari data yang cocok dengan nama akun karyawan
+                allPublishedSalaries = docs.filter(data => {
+                    return data.nama && data.nama.toLowerCase().includes(currentUserId.toLowerCase());
+                });
+                
+                populateEmployeePeriods();
+                document.getElementById('slip-empty-state').textContent = "Pilih periode gaji di atas untuk melihat slip gaji Anda.";
+            }).catch((error) => {
+                console.error("Fetch employee data error:", error);
+                showToast("Gagal memuat data slip dari Cloud", "error");
+                document.getElementById('slip-empty-state').textContent = "Gagal memuat data.";
+            });
         }
 
         function populateEmployeePeriods() {
@@ -724,7 +723,7 @@
             select.innerHTML = '<option value="">Pilih Periode Gaji...</option>';
             
             if (allPublishedSalaries.length === 0) {
-                showToast("Belum ada data slip gaji untuk Anda.", "info");
+                showToast("Belum ada data slip gaji untuk Anda di Cloud.", "info");
                 return;
             }
 
@@ -784,12 +783,49 @@
             document.getElementById('slip-date').textContent = `19 ${data.periodName}`;
         }
 
-        document.getElementById('btn-print').addEventListener('click', () => {
-            if (document.getElementById('slip-container').classList.contains('hidden')) {
-                showToast("Pilih periode gaji terlebih dahulu sebelum mencetak.", "error");
+        document.getElementById('btn-download').addEventListener('click', () => {
+            const container = document.getElementById('slip-container');
+            if (container.classList.contains('hidden')) {
+                showToast("Pilih periode gaji terlebih dahulu sebelum mengunduh.", "error");
                 return;
             }
-            window.print();
+
+            const btn = document.getElementById('btn-download');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = `<span class="animate-pulse flex items-center gap-2"><svg class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg> Memproses PDF...</span>`;
+            btn.disabled = true;
+
+            const periodName = document.getElementById('slip-period').textContent.replace(/\s+/g, '_').replace('.', '');
+            const empName = currentUserName.replace(/\s+/g, '_');
+            
+            const opt = {
+                margin:       0.5,
+                filename:     `Slip_Gaji_${empName}_${periodName}.pdf`,
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2, useCORS: true },
+                jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' }
+            };
+
+            // Remove box shadow temporarily for cleaner PDF
+            const originalShadow = container.style.boxShadow;
+            const originalBorder = container.style.border;
+            container.style.boxShadow = 'none';
+            container.style.border = 'none';
+
+            html2pdf().set(opt).from(container).save().then(() => {
+                container.style.boxShadow = originalShadow;
+                container.style.border = originalBorder;
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+                showToast("Slip gaji berhasil diunduh sebagai PDF.", "success");
+            }).catch(err => {
+                container.style.boxShadow = originalShadow;
+                container.style.border = originalBorder;
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+                console.error("PDF generation error:", err);
+                showToast("Gagal membuat PDF. Coba lagi.", "error");
+            });
         });
 
     </script>
