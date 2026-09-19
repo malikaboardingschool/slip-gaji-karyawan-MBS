@@ -1,0 +1,878 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistem Penggajian - Malika Boarding School</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <!-- SheetJS for Excel parsing -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
+        
+        /* Print Styles */
+        @media print {
+            body { background-color: white; }
+            .no-print { display: none !important; }
+            .print-only { display: block !important; }
+            #printable-slip {
+                border: none !important;
+                box-shadow: none !important;
+                padding: 0 !important;
+                max-width: 100% !important;
+                width: 100% !important;
+            }
+            @page { margin: 1.5cm; }
+        }
+        
+        /* Custom Toast */
+        #toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .toast {
+            min-width: 250px;
+            padding: 16px;
+            border-radius: 8px;
+            color: white;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transform: translateX(120%);
+            transition: transform 0.3s ease-in-out;
+        }
+        .toast.show { transform: translateX(0); }
+        .toast.success { background-color: #10B981; }
+        .toast.error { background-color: #EF4444; }
+        .toast.info { background-color: #3B82F6; }
+
+        /* Slip Specific Font */
+        .slip-font { font-family: 'Times New Roman', Times, serif; color: black; }
+    </style>
+</head>
+<body class="text-gray-800 antialiased h-screen flex flex-col overflow-hidden">
+
+    <!-- Toast Container -->
+    <div id="toast-container"></div>
+
+    <!-- Top Navigation -->
+    <nav class="bg-emerald-700 text-white shadow-md no-print shrink-0">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0 flex items-center gap-2">
+                        <!-- Placeholder for Logo -->
+                        <div class="w-8 h-8 bg-white rounded-full flex items-center justify-center text-emerald-700 font-bold text-sm">MBS</div>
+                        <span class="font-bold text-lg hidden sm:block">MBS Care Payroll</span>
+                    </div>
+                </div>
+                <div class="flex items-center gap-4">
+                    <span id="user-info" class="text-sm font-medium hidden"></span>
+                    <button id="btn-logout" class="hidden bg-emerald-800 hover:bg-emerald-900 px-4 py-2 rounded text-sm transition font-semibold">Logout</button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 overflow-y-auto p-4 sm:p-8 no-print relative">
+        
+        <!-- VIEW: LOGIN -->
+        <div id="view-login" class="max-w-md mx-auto bg-white rounded-xl shadow-lg overflow-hidden mt-10">
+            <div class="bg-emerald-600 p-6 text-center text-white">
+                <h2 class="text-2xl font-bold">Portal Penggajian</h2>
+                <p class="text-emerald-100 text-sm mt-1">Yayasan Malika Islamic Boarding School</p>
+            </div>
+            <div class="p-6">
+                <form id="login-form" class="space-y-4">
+                    <div>
+                        <label for="password" class="block text-sm font-medium text-gray-700">Password Anda</label>
+                        <input type="password" id="password" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-emerald-500 focus:border-emerald-500" placeholder="Masukkan PIN atau Password" required>
+                    </div>
+                    <button type="submit" class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 transition">
+                        Masuk
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- VIEW: ADMIN (BENDAHARA) -->
+        <div id="view-admin" class="hidden max-w-6xl mx-auto space-y-6">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <h1 class="text-2xl font-bold text-gray-800">Dashboard Bendahara</h1>
+                <button id="btn-download-template" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded text-sm font-semibold shadow transition">
+                    Unduh Template Excel
+                </button>
+            </div>
+
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                <h2 class="text-lg font-semibold mb-4 border-b pb-2">Upload Data Gaji Bulanan</h2>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Periode Bulan</label>
+                        <select id="upload-month" class="w-full border-gray-300 border rounded-md shadow-sm px-3 py-2 focus:ring-emerald-500 focus:border-emerald-500">
+                            <option value="Januari">Januari</option>
+                            <option value="Februari">Februari</option>
+                            <option value="Maret">Maret</option>
+                            <option value="April">April</option>
+                            <option value="Mei">Mei</option>
+                            <option value="Juni">Juni</option>
+                            <option value="Juli">Juli</option>
+                            <option value="Agustus">Agustus</option>
+                            <option value="September" selected>September</option>
+                            <option value="Oktober">Oktober</option>
+                            <option value="November">November</option>
+                            <option value="Desember">Desember</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Tahun</label>
+                        <select id="upload-year" class="w-full border-gray-300 border rounded-md shadow-sm px-3 py-2 focus:ring-emerald-500 focus:border-emerald-500">
+                            <option value="2024">2024</option>
+                            <option value="2025">2025</option>
+                            <option value="2026" selected>2026</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">File Excel Data Gaji</label>
+                        <input type="file" id="excel-file" accept=".xlsx, .xls, .csv" class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100 border border-gray-300 rounded-md">
+                    </div>
+                </div>
+                
+                <div id="preview-section" class="hidden mt-8">
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 border-b pb-2 gap-3">
+                        <h2 class="text-lg font-semibold">Preview Data Gaji (<span id="preview-period-text"></span>)</h2>
+                        <button id="btn-publish" class="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2 rounded text-sm font-semibold shadow transition">
+                            Simpan & Publikasikan ke Karyawan
+                        </button>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200 text-xs">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-2 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">NIPMIS</th>
+                                    <th class="px-2 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">Nama</th>
+                                    <th class="px-2 py-3 text-right font-medium text-gray-500 uppercase tracking-wider">Gaji Pokok</th>
+                                    <th class="px-2 py-3 text-center font-medium text-gray-500 uppercase tracking-wider">Transport</th>
+                                    <th class="px-2 py-3 text-right font-medium text-gray-500 uppercase tracking-wider">Tunj. BPJS</th>
+                                    <th class="px-2 py-3 text-right font-medium text-gray-500 uppercase tracking-wider">Koreksi</th>
+                                    <th class="px-2 py-3 text-right font-medium text-emerald-600 uppercase tracking-wider">Pendapatan</th>
+                                    <th class="px-2 py-3 text-right font-medium text-gray-500 uppercase tracking-wider">Pot. BPJS</th>
+                                    <th class="px-2 py-3 text-right font-medium text-gray-500 uppercase tracking-wider">Cicilan</th>
+                                    <th class="px-2 py-3 text-right font-medium text-red-500 uppercase tracking-wider">Potongan</th>
+                                    <th class="px-2 py-3 text-right font-medium text-gray-800 uppercase tracking-wider">Jumlah (Bersih)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="preview-tbody" class="bg-white divide-y divide-gray-200">
+                                <!-- Rows will be generated here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                <h2 class="text-lg font-semibold mb-4 border-b pb-2">Riwayat Data Terpublikasi</h2>
+                <p id="no-history-msg" class="text-gray-500 text-sm italic">Belum ada data gaji yang dipublikasikan.</p>
+                <div id="history-list" class="space-y-2 mt-4">
+                    <!-- History items -->
+                </div>
+            </div>
+        </div>
+
+        <!-- VIEW: EMPLOYEE (KARYAWAN) -->
+        <div id="view-employee" class="hidden max-w-4xl mx-auto space-y-6">
+            
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200 no-print flex flex-col md:flex-row justify-between items-center gap-4">
+                <div>
+                    <h1 class="text-xl font-bold text-gray-800">Halo, <span id="emp-nama-header">-</span></h1>
+                    <p class="text-gray-500 text-sm">NIPMIS: <span id="emp-nipmis-header">-</span></p>
+                </div>
+                <div class="flex items-center gap-3 w-full md:w-auto">
+                    <select id="emp-period-select" class="flex-1 md:w-48 border-gray-300 border rounded-md shadow-sm px-3 py-2 focus:ring-emerald-500 focus:border-emerald-500">
+                        <option value="">Pilih Periode Gaji...</option>
+                    </select>
+                    <button id="btn-print" class="bg-gray-800 hover:bg-gray-900 text-white px-4 py-2 rounded text-sm font-semibold shadow transition flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+                        Cetak Slip
+                    </button>
+                </div>
+            </div>
+
+            <!-- Empty State for Slip -->
+            <div id="slip-empty-state" class="text-center py-12 bg-white rounded-xl shadow-sm border border-gray-200 text-gray-500">
+                Pilih periode gaji di atas untuk melihat slip gaji Anda.
+            </div>
+
+            <!-- THE SLIP TEMPLATE (Matches provided PDF exactly) -->
+            <div id="slip-container" class="hidden bg-white p-8 sm:p-12 shadow-lg max-w-3xl mx-auto border border-gray-300 slip-font">
+                <!-- Header -->
+                <div class="text-center font-bold mb-8">
+                    <h2 class="text-xl leading-tight">SLIP GAJI PEGAWAI</h2>
+                    <h3 class="text-lg leading-tight">Yayasan Malika Islamic Boarding School</h3>
+                    <p class="text-base font-normal mt-1">Bulan <span id="slip-period">September 2026</span> M.</p>
+                </div>
+
+                <!-- Employee Info -->
+                <table class="w-full mb-6 text-sm sm:text-base border-collapse">
+                    <tbody>
+                        <tr><td class="w-32 py-1">Nama</td><td class="w-4">:</td><td class="font-bold" id="slip-nama">Abd. Halim, S.S.I</td></tr>
+                        <tr><td class="py-1">NIPMIS</td><td>:</td><td id="slip-nipmis">20250603</td></tr>
+                        <tr><td class="py-1">Status</td><td>:</td><td id="slip-status">-</td></tr>
+                        <tr><td class="py-1">Amanah</td><td>:</td><td id="slip-amanah">-</td></tr>
+                    </tbody>
+                </table>
+
+                <!-- Financial Details -->
+                <div class="text-sm sm:text-base">
+                    <!-- Pendapatan -->
+                    <div class="font-bold border-b border-black pb-1 mb-2">A. PENDAPATAN</div>
+                    <div class="flex justify-between py-1">
+                        <span class="pl-4">1. Gaji Pokok</span>
+                        <span id="slip-gapok">0</span>
+                    </div>
+                    <div class="flex justify-between py-1">
+                        <span class="pl-4">2. Transport Kehadiran (<span id="slip-transport-hari">0</span> hr x <span id="slip-transport-rate">0</span>)</span>
+                        <span id="slip-transport-total">0</span>
+                    </div>
+                    <div class="flex justify-between py-1">
+                        <span class="pl-4">3. Tunjangan BPJS TK</span>
+                        <span id="slip-tunj-bpjs">0</span>
+                    </div>
+                    <div class="flex justify-between py-1">
+                        <span class="pl-4">4. Koreksi Pendapatan</span>
+                        <span id="slip-koreksi">0</span>
+                    </div>
+                    <div class="flex justify-between py-2 font-bold mt-2">
+                        <span>Jumlah Pendapatan Gaji</span>
+                        <span id="slip-total-pendapatan">0</span>
+                    </div>
+
+                    <!-- Potongan -->
+                    <div class="font-bold border-b border-black pb-1 mb-2 mt-6">B. POTONGAN</div>
+                    <div class="flex justify-between py-1">
+                        <span class="pl-4">1. Potongan BPJS TK</span>
+                        <span id="slip-pot-bpjs">0</span>
+                    </div>
+                    <div class="flex justify-between py-1">
+                        <span class="pl-4">2. Cicilan</span>
+                        <span id="slip-cicilan">0</span>
+                    </div>
+                    <div class="flex justify-between py-2 font-bold mt-2">
+                        <span>Jumlah Potongan Gaji</span>
+                        <span id="slip-potongan">0</span>
+                    </div>
+
+                    <!-- Total -->
+                    <div class="flex justify-between items-center py-4 mt-6 border-t-2 border-b-2 border-black font-bold text-lg">
+                        <span>SISA GAJI DITERIMA</span>
+                        <span id="slip-total-bersih">0</span>
+                    </div>
+                </div>
+
+                <!-- Signatures -->
+                <div class="mt-12 flex justify-end text-sm sm:text-base">
+                    <div class="text-center">
+                        <p>Tangerang, <span id="slip-date">19 September 2026</span></p>
+                        <p>Bendahara</p>
+                        <img src="ttd-bendahara.png" alt="Ttd Bendahara" class="h-16 mx-auto my-1 object-contain">
+                        <p class="font-bold underline decoration-1 underline-offset-4">H. Pepep Taufiq</p>
+                    </div>
+                </div>
+
+                <!-- System Footer -->
+                <div class="mt-16 text-center text-xs italic text-gray-600 border-t border-gray-300 pt-4">
+                    Dokumen ini diterbitkan otomatis oleh MBS Care dan sah tanpa tanda tangan basah.
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, getDocs, addDoc, doc, setDoc, query, onSnapshot, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Global Variables & State
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'mbs-payroll-app';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        
+        let app, db, auth, firestoreUser = null;
+        let currentUserRole = null; // 'admin' | 'employee'
+        let currentUserId = null;   // NIPMIS for employee
+        let currentUserName = null;
+        
+        // Data states
+        let parsedExcelData = [];
+        let currentUploadPeriodId = "";
+        let currentUploadPeriodName = "";
+        let allPublishedSalaries = []; // Cache of all salaries
+
+        // Employee Accounts Dictionary mapped by PIN for PIN-only Login
+        const employeeAccounts = {
+            "5831": "nur baetiyah",
+            "2047": "megawati",
+            "9163": "wasiyah",
+            "4728": "lutfiana zahwa",
+            "3509": "kurniasih",
+            "7814": "aisyah",
+            "6295": "misi",
+            "1436": "zakia ulfa",
+            "8052": "siti laswiyah",
+            "3971": "ninuk mardiyah",
+            "5640": "sri sundari budinastiti",
+            "2189": "yuli yanah",
+            "7463": "winarsih",
+            "9305": "suprihatin ningsih",
+            "6817": "siti akmaliah",
+            "4526": "yuli andayani",
+            "1094": "nur solehah",
+            "8372": "andi rahayu",
+            "2658": "feby utami",
+            "7149": "yanti",
+            "3860": "neng silfi",
+            "5927": "oni",
+            "8415": "cucu setiawati",
+            "6730": "emmy ameliani kamila",
+            "2296": "agis",
+            "4583": "sapid",
+            "7206": "zaid noor hakim",
+            "3158": "resin",
+            "9642": "asdan",
+            "5071": "rulis saepul ulum",
+            "2384": "indra supriatna",
+            "8760": "sudin"
+        };
+
+        // Utilities: Toast Notification
+        window.showToast = function(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type} show`;
+            toast.textContent = message;
+            container.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.classList.remove('show');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        // Utilities: Currency Formatter
+        const formatRp = (num) => {
+            return new Intl.NumberFormat('id-ID').format(num || 0);
+        }
+        
+        // Utilities: Clean numbers from excel strings if needed
+        const cleanNumber = (val) => {
+            if(typeof val === 'number') return val;
+            if(!val) return 0;
+            return parseInt(val.toString().replace(/[^0-9-]/g, ''), 10) || 0;
+        }
+
+        // Utilities: Indonesian Date Formatter
+        const getIndonesianDate = () => {
+            const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+            const date = new Date();
+            return `${date.getDate()} ${months[date.getMonth()]} ${date.getFullYear()}`;
+        }
+
+        // Initialize Firebase ONLY if config is available
+        if (Object.keys(firebaseConfig).length > 0) {
+            try {
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+
+                const initAuth = async () => {
+                    try {
+                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                            await signInWithCustomToken(auth, __initial_auth_token);
+                        } else {
+                            await signInAnonymously(auth);
+                        }
+                    } catch (error) {
+                        console.error("Auth error:", error);
+                        showToast("Koneksi database gagal.", "error");
+                    }
+                };
+
+                onAuthStateChanged(auth, (user) => {
+                    if (user) {
+                        firestoreUser = user;
+                        // App is ready for DB ops
+                    }
+                });
+
+                initAuth();
+            } catch (error) {
+                console.error("Firebase init error:", error);
+            }
+        } else {
+            console.warn("No Firebase config found. App will run in local-only mock mode.");
+        }
+
+        const views = {
+            login: document.getElementById('view-login'),
+            admin: document.getElementById('view-admin'),
+            employee: document.getElementById('view-employee')
+        };
+        const navUserInfo = document.getElementById('user-info');
+        const btnLogout = document.getElementById('btn-logout');
+
+        function switchView(viewName) {
+            Object.values(views).forEach(v => v.classList.add('hidden'));
+            if(views[viewName]) views[viewName].classList.remove('hidden');
+
+            if(viewName === 'login') {
+                navUserInfo.classList.add('hidden');
+                btnLogout.classList.add('hidden');
+            } else {
+                navUserInfo.classList.remove('hidden');
+                btnLogout.classList.remove('hidden');
+            }
+        }
+
+        // Handle Logout
+        btnLogout.addEventListener('click', () => {
+            currentUserRole = null;
+            currentUserId = null;
+            document.getElementById('login-form').reset();
+            switchView('login');
+            parsedExcelData = [];
+            document.getElementById('preview-section').classList.add('hidden');
+            if (document.getElementById('excel-file')) document.getElementById('excel-file').value = "";
+            showToast("Berhasil logout", "success");
+        });
+
+        // Handle Login Submission
+        document.getElementById('login-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const pass = document.getElementById('password').value.trim();
+
+            if (pass === '0227') {
+                // Admin Login
+                currentUserRole = 'admin';
+                currentUserName = 'Bendahara H. Pepep Taufiq';
+                navUserInfo.textContent = 'Mode: Bendahara';
+                switchView('admin');
+                loadHistory(); // Load published periods
+                showToast("Selamat datang, Bendahara!", "success");
+            } else if (employeeAccounts[pass]) {
+                // Employee Login by PIN
+                const user = employeeAccounts[pass];
+                currentUserRole = 'employee';
+                currentUserId = user; // Store normalized name to match with DB later
+                
+                // Capitalize Name for UI
+                currentUserName = user.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' '); 
+                
+                navUserInfo.textContent = `Pegawai: ${currentUserName}`;
+                document.getElementById('emp-nipmis-header').textContent = "Memuat...";
+                switchView('employee');
+                fetchEmployeeData();
+                showToast(`Berhasil masuk sebagai ${currentUserName}.`, "success");
+            } else {
+                showToast("PIN / Password salah atau tidak ditemukan!", "error");
+            }
+        });
+
+        
+        // 1. Download Template
+        document.getElementById('btn-download-template').addEventListener('click', () => {
+            const templateData = [
+                {
+                    "NIPMIS": "20250603",
+                    "Nama": "Abd. Halim, S.S.I",
+                    "Status": "Pegawai Tetap",
+                    "Amanah": "Laundry",
+                    "Gaji Pokok": 1600000,
+                    "Hari Transport": 30,
+                    "Rate Transport": 40000,
+                    "Total Transport": 1200000,
+                    "Tunj. BPJS TK": 28400,
+                    "Koreksi": 0,
+                    "Pendapatan": 2828400,
+                    "Potongan BPJS TK": 28400,
+                    "Cicilan": 0,
+                    "Potongan": 28400,
+                    "Jumlah": 2800000
+                },
+                {
+                    "NIPMIS": "20250604",
+                    "Nama": "Contoh Pegawai",
+                    "Status": "Pegawai Kontrak",
+                    "Amanah": "Laundry",
+                    "Gaji Pokok": 1300000,
+                    "Hari Transport": 31,
+                    "Rate Transport": 40000,
+                    "Total Transport": 1240000,
+                    "Tunj. BPJS TK": 28400,
+                    "Koreksi": 0,
+                    "Pendapatan": 2568400,
+                    "Potongan BPJS TK": 28400,
+                    "Cicilan": 0,
+                    "Potongan": 28400,
+                    "Jumlah": 2540000
+                }
+            ];
+            
+            const worksheet = XLSX.utils.json_to_sheet(templateData);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Template Gaji");
+            XLSX.writeFile(workbook, "Template_Gaji_Karyawan_MBS.xlsx");
+            showToast("Template berhasil diunduh.", "success");
+        });
+
+        // 2. Upload and Parse Excel
+        document.getElementById('excel-file').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                try {
+                    const data = new Uint8Array(event.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    
+                    // Convert to JSON
+                    const json = XLSX.utils.sheet_to_json(worksheet);
+                    
+                    if (json.length === 0) {
+                        showToast("File Excel kosong!", "error");
+                        return;
+                    }
+
+                    // Map & Validate Data
+                    parsedExcelData = json.map(row => {
+                        // Support various naming conventions that might happen in excel headers
+                        const getVal = (keys) => {
+                            for(let k of keys) {
+                                if(row[k] !== undefined) return cleanNumber(row[k]);
+                            }
+                            return 0;
+                        };
+
+                        const gapok = getVal(["Gaji Pokok", "GajiPokok"]);
+                        const hariTrans = getVal(["Hari Transport", "Hari", "Jml Hari"]);
+                        const rateTrans = getVal(["Rate Transport", "Rate"]);
+                        const totalTrans = getVal(["Total Transport", "Transport Kehadiran"]);
+                        const tunjBpjs = getVal(["Tunj. BPJS TK", "Tunj BPJS TK", "Tunjangan BPJS"]);
+                        const koreksi = getVal(["Koreksi"]);
+                        
+                        const potBpjs = getVal(["Potongan BPJS TK", "Pot BPJS TK"]);
+                        const cicilan = getVal(["Cicilan"]);
+                        
+                        // Calculate totals to ensure accuracy regardless of excel formula errors
+                        const calcPendapatan = gapok + totalTrans + tunjBpjs + koreksi;
+                        const calcPotongan = potBpjs + cicilan;
+                        const calcJumlah = calcPendapatan - calcPotongan;
+
+                        return {
+                            nipmis: String(row["NIPMIS"] || ""),
+                            nama: row["Nama"] || "Tanpa Nama",
+                            status: row["Status"] || "-",
+                            amanah: row["Amanah"] || "-",
+                            gaji_pokok: gapok,
+                            transport_hari: hariTrans,
+                            transport_rate: rateTrans,
+                            transport_total: totalTrans,
+                            tunj_bpjs: tunjBpjs,
+                            koreksi: koreksi,
+                            total_pendapatan: calcPendapatan,
+                            pot_bpjs: potBpjs,
+                            cicilan: cicilan,
+                            total_potongan: calcPotongan,
+                            total_bersih: calcJumlah
+                        };
+                    }).filter(r => r.nipmis !== ""); // Remove empty rows
+
+                    if (parsedExcelData.length === 0) {
+                        showToast("Format kolom tidak sesuai atau NIPMIS kosong.", "error");
+                        return;
+                    }
+
+                    // Render Preview
+                    renderPreviewTable();
+                    showToast(`${parsedExcelData.length} data berhasil dibaca.`, "success");
+
+                } catch (error) {
+                    console.error(error);
+                    showToast("Gagal membaca file Excel. Pastikan format benar.", "error");
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        });
+
+        function renderPreviewTable() {
+            const month = document.getElementById('upload-month').value;
+            const year = document.getElementById('upload-year').value;
+            currentUploadPeriodName = `${month} ${year}`;
+            currentUploadPeriodId = `${year}-${month.toLowerCase()}`;
+            
+            document.getElementById('preview-period-text').textContent = currentUploadPeriodName;
+            
+            const tbody = document.getElementById('preview-tbody');
+            tbody.innerHTML = "";
+            
+            parsedExcelData.forEach(row => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="px-2 py-2 whitespace-nowrap">${row.nipmis}</td>
+                    <td class="px-2 py-2 whitespace-nowrap font-medium">${row.nama}</td>
+                    <td class="px-2 py-2 whitespace-nowrap text-right">Rp ${formatRp(row.gaji_pokok)}</td>
+                    <td class="px-2 py-2 whitespace-nowrap text-center text-xs">${row.transport_hari}h x ${formatRp(row.transport_rate)}<br><span class="font-semibold text-emerald-600">Rp ${formatRp(row.transport_total)}</span></td>
+                    <td class="px-2 py-2 whitespace-nowrap text-right">Rp ${formatRp(row.tunj_bpjs)}</td>
+                    <td class="px-2 py-2 whitespace-nowrap text-right">Rp ${formatRp(row.koreksi)}</td>
+                    <td class="px-2 py-2 whitespace-nowrap text-right font-semibold text-emerald-600 bg-emerald-50">Rp ${formatRp(row.total_pendapatan)}</td>
+                    <td class="px-2 py-2 whitespace-nowrap text-right text-red-500">Rp ${formatRp(row.pot_bpjs)}</td>
+                    <td class="px-2 py-2 whitespace-nowrap text-right text-red-500">Rp ${formatRp(row.cicilan)}</td>
+                    <td class="px-2 py-2 whitespace-nowrap text-right font-semibold text-red-600 bg-red-50">Rp ${formatRp(row.total_potongan)}</td>
+                    <td class="px-2 py-2 whitespace-nowrap text-right font-bold text-gray-800 bg-gray-100">Rp ${formatRp(row.total_bersih)}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+            
+            document.getElementById('preview-section').classList.remove('hidden');
+        }
+
+        document.getElementById('btn-publish').addEventListener('click', async () => {
+            if (!firestoreUser || !db) {
+                showToast("Koneksi database belum siap. Coba lagi.", "error");
+                return;
+            }
+            if (parsedExcelData.length === 0) {
+                showToast("Tidak ada data untuk disimpan.", "error");
+                return;
+            }
+
+            const btn = document.getElementById('btn-publish');
+            btn.disabled = true;
+            btn.textContent = "Menyimpan...";
+
+            try {
+                // Rule 1: Strict Paths -> /artifacts/{appId}/public/data/salaries
+                const salariesRef = collection(db, 'artifacts', appId, 'public', 'data', 'salaries');
+                const batch = writeBatch(db); // Use batch for multiple writes
+
+                parsedExcelData.forEach(item => {
+                    // Unique ID: periodId_nipmis
+                    const docId = `${currentUploadPeriodId}_${item.nipmis}`;
+                    const docRef = doc(salariesRef, docId);
+                    
+                    const payload = {
+                        periodId: currentUploadPeriodId,
+                        periodName: currentUploadPeriodName,
+                        nipmis: item.nipmis,
+                        nama: item.nama,
+                        status: item.status,
+                        amanah: item.amanah,
+                        gaji_pokok: item.gaji_pokok,
+                        transport_hari: item.transport_hari,
+                        transport_rate: item.transport_rate,
+                        transport_total: item.transport_total,
+                        tunj_bpjs: item.tunj_bpjs,
+                        koreksi: item.koreksi,
+                        total_pendapatan: item.total_pendapatan,
+                        pot_bpjs: item.pot_bpjs,
+                        cicilan: item.cicilan,
+                        total_potongan: item.total_potongan,
+                        total_bersih: item.total_bersih,
+                        timestamp: new Date().toISOString()
+                    };
+                    
+                    batch.set(docRef, payload);
+                });
+
+                await batch.commit();
+
+                // Save period metadata (optional but helpful for history)
+                const periodsRef = doc(db, 'artifacts', appId, 'public', 'data', 'periods', currentUploadPeriodId);
+                await setDoc(periodsRef, { 
+                    id: currentUploadPeriodId, 
+                    name: currentUploadPeriodName,
+                    count: parsedExcelData.length,
+                    date: new Date().toISOString()
+                });
+
+                showToast("Data gaji berhasil dipublikasikan!", "success");
+                
+                // Reset form
+                parsedExcelData = [];
+                document.getElementById('preview-section').classList.add('hidden');
+                document.getElementById('excel-file').value = "";
+                
+                loadHistory();
+
+            } catch (error) {
+                console.error("Publish Error:", error);
+                showToast("Gagal menyimpan data.", "error");
+            } finally {
+                btn.disabled = false;
+                btn.textContent = "Simpan & Publikasikan ke Karyawan";
+            }
+        });
+
+        // Load History for Admin
+        function loadHistory() {
+            if (!firestoreUser || !db) return;
+            
+            const periodsRef = collection(db, 'artifacts', appId, 'public', 'data', 'periods');
+            
+            onSnapshot(periodsRef, (snapshot) => {
+                const list = document.getElementById('history-list');
+                const msg = document.getElementById('no-history-msg');
+                list.innerHTML = "";
+                
+                if (snapshot.empty) {
+                    msg.classList.remove('hidden');
+                    return;
+                }
+                
+                msg.classList.add('hidden');
+                const docs = [];
+                snapshot.forEach(doc => docs.push(doc.data()));
+                
+                // Sort by date descending (in memory)
+                docs.sort((a,b) => new Date(b.date) - new Date(a.date));
+                
+                docs.forEach(data => {
+                    const el = document.createElement('div');
+                    el.className = "flex justify-between items-center p-3 bg-gray-50 rounded border border-gray-100";
+                    el.innerHTML = `
+                        <div>
+                            <p class="font-bold text-gray-800">${data.name}</p>
+                            <p class="text-xs text-gray-500">${data.count} Karyawan tersimpan</p>
+                        </div>
+                        <span class="bg-emerald-100 text-emerald-800 text-xs font-semibold px-2.5 py-0.5 rounded">Terkirim</span>
+                    `;
+                    list.appendChild(el);
+                });
+            }, (error) => {
+                console.error("History fetch error:", error);
+            });
+        }
+
+        function fetchEmployeeData() {
+            if (!firestoreUser || !db || !currentUserId) return;
+            
+            // Rule 2: No complex queries. Fetch all salaries, filter in memory.
+            const salariesRef = collection(db, 'artifacts', appId, 'public', 'data', 'salaries');
+            
+            getDocs(salariesRef).then((snapshot) => {
+                allPublishedSalaries = [];
+                snapshot.forEach(doc => {
+                    const data = doc.data();
+                    
+                    // Match by NIPMIS OR by checking if Name is included in the string
+                    const isNipmisMatch = data.nipmis === currentUserId;
+                    const isNameMatch = data.nama && data.nama.toLowerCase().includes(currentUserId.toLowerCase());
+                    
+                    if (isNipmisMatch || isNameMatch) {
+                        allPublishedSalaries.push(data);
+                    }
+                });
+                
+                populateEmployeePeriods();
+            }).catch((error) => {
+                console.error("Fetch employee data error:", error);
+                showToast("Gagal mengambil data dari server.", "error");
+            });
+        }
+
+        function populateEmployeePeriods() {
+            const select = document.getElementById('emp-period-select');
+            // Keep first option
+            select.innerHTML = '<option value="">Pilih Periode Gaji...</option>';
+            
+            if (allPublishedSalaries.length === 0) {
+                showToast("Belum ada data slip gaji untuk Anda.", "info");
+                return;
+            }
+
+            // Update Name in Header from the first available record
+            if (allPublishedSalaries.length > 0) {
+                document.getElementById('emp-nama-header').textContent = allPublishedSalaries[0].nama;
+            }
+
+            // Sort periods by timestamp desc
+            allPublishedSalaries.sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+            allPublishedSalaries.forEach(data => {
+                const opt = document.createElement('option');
+                opt.value = data.periodId;
+                opt.textContent = data.periodName;
+                select.appendChild(opt);
+            });
+        }
+
+        // Handle Period Selection
+        document.getElementById('emp-period-select').addEventListener('change', (e) => {
+            const periodId = e.target.value;
+            const container = document.getElementById('slip-container');
+            const emptyState = document.getElementById('slip-empty-state');
+            
+            if (!periodId) {
+                container.classList.add('hidden');
+                emptyState.classList.remove('hidden');
+                return;
+            }
+
+            const data = allPublishedSalaries.find(s => s.periodId === periodId);
+            if (data) {
+                renderSlip(data);
+                container.classList.remove('hidden');
+                emptyState.classList.add('hidden');
+            }
+        });
+
+        function renderSlip(data) {
+            // Header
+            document.getElementById('slip-period').textContent = data.periodName;
+            
+            // Identitas
+            document.getElementById('slip-nama').textContent = data.nama;
+            document.getElementById('slip-nipmis').textContent = data.nipmis;
+            document.getElementById('slip-status').textContent = data.status || '-';
+            document.getElementById('slip-amanah').textContent = data.amanah || '-';
+            
+            // Keuangan - Pendapatan
+            document.getElementById('slip-gapok').textContent = formatRp(data.gaji_pokok);
+            document.getElementById('slip-transport-hari').textContent = data.transport_hari || 0;
+            document.getElementById('slip-transport-rate').textContent = formatRp(data.transport_rate);
+            document.getElementById('slip-transport-total').textContent = formatRp(data.transport_total);
+            document.getElementById('slip-tunj-bpjs').textContent = formatRp(data.tunj_bpjs);
+            document.getElementById('slip-koreksi').textContent = formatRp(data.koreksi);
+            document.getElementById('slip-total-pendapatan').textContent = formatRp(data.total_pendapatan);
+            
+            // Keuangan - Potongan
+            document.getElementById('slip-pot-bpjs').textContent = formatRp(data.pot_bpjs);
+            document.getElementById('slip-cicilan').textContent = formatRp(data.cicilan);
+            document.getElementById('slip-potongan').textContent = formatRp(data.total_potongan);
+            
+            // Bersih
+            document.getElementById('slip-total-bersih').textContent = formatRp(data.total_bersih);
+            
+            // Footer Date (Dynamically uses the 19th + Selected Period Name)
+            document.getElementById('slip-date').textContent = `19 ${data.periodName}`;
+        }
+
+        // Print Functionality
+        document.getElementById('btn-print').addEventListener('click', () => {
+            if (document.getElementById('slip-container').classList.contains('hidden')) {
+                showToast("Pilih periode gaji terlebih dahulu sebelum mencetak.", "error");
+                return;
+            }
+            window.print();
+        });
+
+    </script>
+</body>
+</html>
