@@ -295,14 +295,16 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, getDocs, addDoc, doc, setDoc, query, onSnapshot, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, getDocs, doc, setDoc, onSnapshot, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Global Variables & State
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'mbs-payroll-app';
         const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
         
         let app, db, auth, firestoreUser = null;
+        let isFirebaseReady = false;
+        
         let currentUserRole = null; // 'admin' | 'employee'
         let currentUserId = null;   // NIPMIS for employee
         let currentUserName = null;
@@ -311,7 +313,7 @@
         let parsedExcelData = [];
         let currentUploadPeriodId = "";
         let currentUploadPeriodName = "";
-        let allPublishedSalaries = []; // Cache of all salaries
+        let allPublishedSalaries = []; 
 
         // Employee Accounts Dictionary mapped by PIN for PIN-only Login
         const employeeAccounts = {
@@ -349,7 +351,6 @@
             "8760": "sudin"
         };
 
-        // Utilities: Toast Notification
         window.showToast = function(message, type = 'info') {
             const container = document.getElementById('toast-container');
             const toast = document.createElement('div');
@@ -363,26 +364,14 @@
             }, 3000);
         }
 
-        // Utilities: Currency Formatter
-        const formatRp = (num) => {
-            return new Intl.NumberFormat('id-ID').format(num || 0);
-        }
+        const formatRp = (num) => new Intl.NumberFormat('id-ID').format(num || 0);
         
-        // Utilities: Clean numbers from excel strings if needed
         const cleanNumber = (val) => {
             if(typeof val === 'number') return val;
             if(!val) return 0;
             return parseInt(val.toString().replace(/[^0-9-]/g, ''), 10) || 0;
         }
 
-        // Utilities: Indonesian Date Formatter
-        const getIndonesianDate = () => {
-            const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
-            const date = new Date();
-            return `${date.getDate()} ${months[date.getMonth()]} ${date.getFullYear()}`;
-        }
-
-        // Initialize Firebase ONLY if config is available
         if (Object.keys(firebaseConfig).length > 0) {
             try {
                 app = initializeApp(firebaseConfig);
@@ -392,29 +381,26 @@
                 const initAuth = async () => {
                     try {
                         if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                            await signInWithCustomToken(auth, __initial_auth_token);
+                            const userCred = await signInWithCustomToken(auth, __initial_auth_token);
+                            firestoreUser = userCred.user;
                         } else {
-                            await signInAnonymously(auth);
+                            const userCred = await signInAnonymously(auth);
+                            firestoreUser = userCred.user;
                         }
+                        isFirebaseReady = true;
                     } catch (error) {
                         console.error("Auth error:", error);
-                        showToast("Koneksi database gagal.", "error");
+                        isFirebaseReady = false; // Fallback to local storage automatically
                     }
                 };
-
-                onAuthStateChanged(auth, (user) => {
-                    if (user) {
-                        firestoreUser = user;
-                        // App is ready for DB ops
-                    }
-                });
-
                 initAuth();
             } catch (error) {
                 console.error("Firebase init error:", error);
+                isFirebaseReady = false;
             }
         } else {
-            console.warn("No Firebase config found. App will run in local-only mock mode.");
+            console.warn("No Firebase config. Using LocalStorage.");
+            isFirebaseReady = false;
         }
 
         const views = {
@@ -450,26 +436,21 @@
             showToast("Berhasil logout", "success");
         });
 
-        // Handle Login Submission
         document.getElementById('login-form').addEventListener('submit', (e) => {
             e.preventDefault();
             const pass = document.getElementById('password').value.trim();
 
             if (pass === '0227') {
-                // Admin Login
                 currentUserRole = 'admin';
                 currentUserName = 'Bendahara H. Pepep Taufiq';
                 navUserInfo.textContent = 'Mode: Bendahara';
                 switchView('admin');
-                loadHistory(); // Load published periods
+                loadHistory(); 
                 showToast("Selamat datang, Bendahara!", "success");
             } else if (employeeAccounts[pass]) {
-                // Employee Login by PIN
                 const user = employeeAccounts[pass];
                 currentUserRole = 'employee';
-                currentUserId = user; // Store normalized name to match with DB later
-                
-                // Capitalize Name for UI
+                currentUserId = user; 
                 currentUserName = user.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' '); 
                 
                 navUserInfo.textContent = `Pegawai: ${currentUserName}`;
@@ -482,46 +463,10 @@
             }
         });
 
-        
-        // 1. Download Template
         document.getElementById('btn-download-template').addEventListener('click', () => {
-            const templateData = [
-                {
-                    "NIPMIS": "20250603",
-                    "Nama": "Abd. Halim, S.S.I",
-                    "Status": "Pegawai Tetap",
-                    "Amanah": "Laundry",
-                    "Gaji Pokok": 1600000,
-                    "Hari Transport": 30,
-                    "Rate Transport": 40000,
-                    "Total Transport": 1200000,
-                    "Tunj. BPJS TK": 28400,
-                    "Koreksi": 0,
-                    "Pendapatan": 2828400,
-                    "Potongan BPJS TK": 28400,
-                    "Cicilan": 0,
-                    "Potongan": 28400,
-                    "Jumlah": 2800000
-                },
-                {
-                    "NIPMIS": "20250604",
-                    "Nama": "Contoh Pegawai",
-                    "Status": "Pegawai Kontrak",
-                    "Amanah": "Laundry",
-                    "Gaji Pokok": 1300000,
-                    "Hari Transport": 31,
-                    "Rate Transport": 40000,
-                    "Total Transport": 1240000,
-                    "Tunj. BPJS TK": 28400,
-                    "Koreksi": 0,
-                    "Pendapatan": 2568400,
-                    "Potongan BPJS TK": 28400,
-                    "Cicilan": 0,
-                    "Potongan": 28400,
-                    "Jumlah": 2540000
-                }
-            ];
-            
+            const templateData = [{
+                "NIPMIS": "20250603", "Nama": "Abd. Halim, S.S.I", "Status": "Pegawai Tetap", "Amanah": "Laundry", "Gaji Pokok": 1600000, "Hari Transport": 30, "Rate Transport": 40000, "Total Transport": 1200000, "Tunj. BPJS TK": 28400, "Koreksi": 0, "Pendapatan": 2828400, "Potongan BPJS TK": 28400, "Cicilan": 0, "Potongan": 28400, "Jumlah": 2800000
+            }];
             const worksheet = XLSX.utils.json_to_sheet(templateData);
             const workbook = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(workbook, worksheet, "Template Gaji");
@@ -529,7 +474,6 @@
             showToast("Template berhasil diunduh.", "success");
         });
 
-        // 2. Upload and Parse Excel
         document.getElementById('excel-file').addEventListener('change', (e) => {
             const file = e.target.files[0];
             if (!file) return;
@@ -539,10 +483,7 @@
                 try {
                     const data = new Uint8Array(event.target.result);
                     const workbook = XLSX.read(data, { type: 'array' });
-                    const firstSheetName = workbook.SheetNames[0];
-                    const worksheet = workbook.Sheets[firstSheetName];
-                    
-                    // Convert to JSON
+                    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
                     const json = XLSX.utils.sheet_to_json(worksheet);
                     
                     if (json.length === 0) {
@@ -550,9 +491,7 @@
                         return;
                     }
 
-                    // Map & Validate Data
                     parsedExcelData = json.map(row => {
-                        // Support various naming conventions that might happen in excel headers
                         const getVal = (keys) => {
                             for(let k of keys) {
                                 if(row[k] !== undefined) return cleanNumber(row[k]);
@@ -560,17 +499,15 @@
                             return 0;
                         };
 
-                        const gapok = getVal(["Gaji Pokok", "GajiPokok"]);
-                        const hariTrans = getVal(["Hari Transport", "Hari", "Jml Hari"]);
+                        const gapok = getVal(["Gaji Pokok"]);
+                        const hariTrans = getVal(["Hari Transport", "Hari"]);
                         const rateTrans = getVal(["Rate Transport", "Rate"]);
                         const totalTrans = getVal(["Total Transport", "Transport Kehadiran"]);
-                        const tunjBpjs = getVal(["Tunj. BPJS TK", "Tunj BPJS TK", "Tunjangan BPJS"]);
+                        const tunjBpjs = getVal(["Tunj. BPJS TK", "Tunj BPJS TK"]);
                         const koreksi = getVal(["Koreksi"]);
-                        
                         const potBpjs = getVal(["Potongan BPJS TK", "Pot BPJS TK"]);
                         const cicilan = getVal(["Cicilan"]);
                         
-                        // Calculate totals to ensure accuracy regardless of excel formula errors
                         const calcPendapatan = gapok + totalTrans + tunjBpjs + koreksi;
                         const calcPotongan = potBpjs + cicilan;
                         const calcJumlah = calcPendapatan - calcPotongan;
@@ -592,14 +529,13 @@
                             total_potongan: calcPotongan,
                             total_bersih: calcJumlah
                         };
-                    }).filter(r => r.nipmis !== ""); // Remove empty rows
+                    }).filter(r => r.nipmis !== ""); 
 
                     if (parsedExcelData.length === 0) {
                         showToast("Format kolom tidak sesuai atau NIPMIS kosong.", "error");
                         return;
                     }
 
-                    // Render Preview
                     renderPreviewTable();
                     showToast(`${parsedExcelData.length} data berhasil dibaca.`, "success");
 
@@ -644,116 +580,68 @@
         }
 
         document.getElementById('btn-publish').addEventListener('click', async () => {
-            if (parsedExcelData.length === 0) {
-                showToast("Tidak ada data untuk disimpan.", "error");
-                return;
-            }
+            if (parsedExcelData.length === 0) return;
 
             const btn = document.getElementById('btn-publish');
             btn.disabled = true;
             btn.textContent = "Menyimpan...";
 
             try {
-                // FALLBACK: Gunakan LocalStorage jika Firestore belum siap di sesi ini
-                if (!firestoreUser || !db) {
-                    let localSalaries = JSON.parse(localStorage.getItem('mbs_salaries') || '[]');
-                    let localPeriods = JSON.parse(localStorage.getItem('mbs_periods') || '[]');
-                    
-                    parsedExcelData.forEach(item => {
-                        const payload = {
-                            periodId: currentUploadPeriodId,
-                            periodName: currentUploadPeriodName,
-                            nipmis: item.nipmis,
-                            nama: item.nama,
-                            status: item.status,
-                            amanah: item.amanah,
-                            gaji_pokok: item.gaji_pokok,
-                            transport_hari: item.transport_hari,
-                            transport_rate: item.transport_rate,
-                            transport_total: item.transport_total,
-                            tunj_bpjs: item.tunj_bpjs,
-                            koreksi: item.koreksi,
-                            total_pendapatan: item.total_pendapatan,
-                            pot_bpjs: item.pot_bpjs,
-                            cicilan: item.cicilan,
-                            total_potongan: item.total_potongan,
-                            total_bersih: item.total_bersih,
-                            timestamp: new Date().toISOString()
-                        };
-                        // Hapus data lama dengan NIPMIS & Periode yang sama (jika ada timpa ulang)
-                        localSalaries = localSalaries.filter(s => !(s.periodId === currentUploadPeriodId && s.nipmis === item.nipmis));
-                        localSalaries.push(payload);
-                    });
-                    
-                    localStorage.setItem('mbs_salaries', JSON.stringify(localSalaries));
-                    
-                    // Simpan metadata periode
-                    localPeriods = localPeriods.filter(p => p.id !== currentUploadPeriodId);
-                    localPeriods.push({
-                        id: currentUploadPeriodId, 
-                        name: currentUploadPeriodName,
-                        count: parsedExcelData.length,
-                        date: new Date().toISOString()
-                    });
-                    localStorage.setItem('mbs_periods', JSON.stringify(localPeriods));
-
-                    showToast("Data berhasil dipublikasikan! (Mode Lokal Tersimpan)", "success");
-                    
-                } else {
-                    // MODE FIRESTORE: Jika database cloud aktif
+                if (isFirebaseReady && db && firestoreUser) {
+                    // MODE CLOUD FIRESTORE
                     const salariesRef = collection(db, 'artifacts', appId, 'public', 'data', 'salaries');
                     const batch = writeBatch(db);
 
                     parsedExcelData.forEach(item => {
                         const docId = `${currentUploadPeriodId}_${item.nipmis}`;
                         const docRef = doc(salariesRef, docId);
-                        
-                        const payload = {
-                            periodId: currentUploadPeriodId,
-                            periodName: currentUploadPeriodName,
-                            nipmis: item.nipmis,
-                            nama: item.nama,
-                            status: item.status,
-                            amanah: item.amanah,
-                            gaji_pokok: item.gaji_pokok,
-                            transport_hari: item.transport_hari,
-                            transport_rate: item.transport_rate,
-                            transport_total: item.transport_total,
-                            tunj_bpjs: item.tunj_bpjs,
-                            koreksi: item.koreksi,
-                            total_pendapatan: item.total_pendapatan,
-                            pot_bpjs: item.pot_bpjs,
-                            cicilan: item.cicilan,
-                            total_potongan: item.total_potongan,
-                            total_bersih: item.total_bersih,
-                            timestamp: new Date().toISOString()
-                        };
-                        batch.set(docRef, payload);
+                        batch.set(docRef, {
+                            periodId: currentUploadPeriodId, periodName: currentUploadPeriodName,
+                            ...item, timestamp: new Date().toISOString()
+                        });
                     });
 
                     await batch.commit();
 
                     const periodsRef = doc(db, 'artifacts', appId, 'public', 'data', 'periods', currentUploadPeriodId);
                     await setDoc(periodsRef, { 
-                        id: currentUploadPeriodId, 
-                        name: currentUploadPeriodName,
-                        count: parsedExcelData.length,
-                        date: new Date().toISOString()
+                        id: currentUploadPeriodId, name: currentUploadPeriodName,
+                        count: parsedExcelData.length, date: new Date().toISOString()
                     });
 
-                    showToast("Data gaji berhasil dipublikasikan!", "success");
+                    showToast("Data gaji dipublikasikan ke server!", "success");
+                } else {
+                    // MODE LOKAL BROWSER (Fallback)
+                    let localSalaries = JSON.parse(localStorage.getItem('mbs_salaries') || '[]');
+                    let localPeriods = JSON.parse(localStorage.getItem('mbs_periods') || '[]');
+                    
+                    parsedExcelData.forEach(item => {
+                        localSalaries = localSalaries.filter(s => !(s.periodId === currentUploadPeriodId && s.nipmis === item.nipmis));
+                        localSalaries.push({
+                            periodId: currentUploadPeriodId, periodName: currentUploadPeriodName,
+                            ...item, timestamp: new Date().toISOString()
+                        });
+                    });
+                    localStorage.setItem('mbs_salaries', JSON.stringify(localSalaries));
+                    
+                    localPeriods = localPeriods.filter(p => p.id !== currentUploadPeriodId);
+                    localPeriods.push({
+                        id: currentUploadPeriodId, name: currentUploadPeriodName,
+                        count: parsedExcelData.length, date: new Date().toISOString()
+                    });
+                    localStorage.setItem('mbs_periods', JSON.stringify(localPeriods));
+
+                    showToast("Disimpan di mode lokal (Offline)", "success");
                 }
 
-                // Reset form setelah sukses
                 parsedExcelData = [];
                 document.getElementById('preview-section').classList.add('hidden');
                 document.getElementById('excel-file').value = "";
-                
                 loadHistory();
 
             } catch (error) {
                 console.error("Publish Error:", error);
-                showToast("Gagal menyimpan data.", "error");
+                showToast("Gagal menyimpan: " + error.message, "error");
             } finally {
                 btn.disabled = false;
                 btn.textContent = "Simpan & Publikasikan ke Karyawan";
@@ -787,66 +675,52 @@
             });
         }
 
-        // Load History for Admin
         function loadHistory() {
-            if (!db || !firestoreUser) {
-                // Ambil dari LocalStorage jika offline/local mode
-                const localPeriods = JSON.parse(localStorage.getItem('mbs_periods') || '[]');
-                renderHistoryListUI(localPeriods);
-                return;
+            if (isFirebaseReady && db && firestoreUser) {
+                const periodsRef = collection(db, 'artifacts', appId, 'public', 'data', 'periods');
+                onSnapshot(periodsRef, (snapshot) => {
+                    const docs = [];
+                    snapshot.forEach(doc => docs.push(doc.data()));
+                    renderHistoryListUI(docs);
+                }, (error) => {
+                    console.error("History fetch error:", error);
+                    // fallback to local on error
+                    renderHistoryListUI(JSON.parse(localStorage.getItem('mbs_periods') || '[]'));
+                });
+            } else {
+                renderHistoryListUI(JSON.parse(localStorage.getItem('mbs_periods') || '[]'));
             }
-            
-            const periodsRef = collection(db, 'artifacts', appId, 'public', 'data', 'periods');
-            
-            onSnapshot(periodsRef, (snapshot) => {
-                const docs = [];
-                snapshot.forEach(doc => docs.push(doc.data()));
-                renderHistoryListUI(docs);
-            }, (error) => {
-                console.error("History fetch error:", error);
-            });
         }
 
         function fetchEmployeeData() {
             if (!currentUserId) return;
 
-            if (!db || !firestoreUser) {
-                // Ambil dari LocalStorage jika offline/local mode
-                const localSalaries = JSON.parse(localStorage.getItem('mbs_salaries') || '[]');
-                allPublishedSalaries = localSalaries.filter(data => {
+            const processEmployeeDocs = (docs) => {
+                allPublishedSalaries = docs.filter(data => {
                     const isNipmisMatch = data.nipmis === currentUserId;
                     const isNameMatch = data.nama && data.nama.toLowerCase().includes(currentUserId.toLowerCase());
                     return isNipmisMatch || isNameMatch;
                 });
                 populateEmployeePeriods();
-                return;
-            }
-            
-            // Mode Firestore
-            const salariesRef = collection(db, 'artifacts', appId, 'public', 'data', 'salaries');
-            
-            getDocs(salariesRef).then((snapshot) => {
-                allPublishedSalaries = [];
-                snapshot.forEach(doc => {
-                    const data = doc.data();
-                    const isNipmisMatch = data.nipmis === currentUserId;
-                    const isNameMatch = data.nama && data.nama.toLowerCase().includes(currentUserId.toLowerCase());
-                    
-                    if (isNipmisMatch || isNameMatch) {
-                        allPublishedSalaries.push(data);
-                    }
+            };
+
+            if (isFirebaseReady && db && firestoreUser) {
+                const salariesRef = collection(db, 'artifacts', appId, 'public', 'data', 'salaries');
+                getDocs(salariesRef).then((snapshot) => {
+                    const docs = [];
+                    snapshot.forEach(doc => docs.push(doc.data()));
+                    processEmployeeDocs(docs);
+                }).catch((error) => {
+                    console.error("Fetch employee data error:", error);
+                    processEmployeeDocs(JSON.parse(localStorage.getItem('mbs_salaries') || '[]'));
                 });
-                
-                populateEmployeePeriods();
-            }).catch((error) => {
-                console.error("Fetch employee data error:", error);
-                showToast("Gagal mengambil data dari server.", "error");
-            });
+            } else {
+                processEmployeeDocs(JSON.parse(localStorage.getItem('mbs_salaries') || '[]'));
+            }
         }
 
         function populateEmployeePeriods() {
             const select = document.getElementById('emp-period-select');
-            // Keep first option
             select.innerHTML = '<option value="">Pilih Periode Gaji...</option>';
             
             if (allPublishedSalaries.length === 0) {
@@ -854,14 +728,12 @@
                 return;
             }
 
-            // Update Name in Header from the first available record
             if (allPublishedSalaries.length > 0) {
                 document.getElementById('emp-nama-header').textContent = allPublishedSalaries[0].nama;
+                document.getElementById('emp-nipmis-header').textContent = allPublishedSalaries[0].nipmis || "-";
             }
 
-            // Sort periods by timestamp desc
             allPublishedSalaries.sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp));
-
             allPublishedSalaries.forEach(data => {
                 const opt = document.createElement('option');
                 opt.value = data.periodId;
@@ -870,7 +742,6 @@
             });
         }
 
-        // Handle Period Selection
         document.getElementById('emp-period-select').addEventListener('change', (e) => {
             const periodId = e.target.value;
             const container = document.getElementById('slip-container');
@@ -891,16 +762,12 @@
         });
 
         function renderSlip(data) {
-            // Header
             document.getElementById('slip-period').textContent = data.periodName;
-            
-            // Identitas
             document.getElementById('slip-nama').textContent = data.nama;
             document.getElementById('slip-nipmis').textContent = data.nipmis;
             document.getElementById('slip-status').textContent = data.status || '-';
             document.getElementById('slip-amanah').textContent = data.amanah || '-';
             
-            // Keuangan - Pendapatan
             document.getElementById('slip-gapok').textContent = formatRp(data.gaji_pokok);
             document.getElementById('slip-transport-hari').textContent = data.transport_hari || 0;
             document.getElementById('slip-transport-rate').textContent = formatRp(data.transport_rate);
@@ -909,19 +776,14 @@
             document.getElementById('slip-koreksi').textContent = formatRp(data.koreksi);
             document.getElementById('slip-total-pendapatan').textContent = formatRp(data.total_pendapatan);
             
-            // Keuangan - Potongan
             document.getElementById('slip-pot-bpjs').textContent = formatRp(data.pot_bpjs);
             document.getElementById('slip-cicilan').textContent = formatRp(data.cicilan);
             document.getElementById('slip-potongan').textContent = formatRp(data.total_potongan);
-            
-            // Bersih
             document.getElementById('slip-total-bersih').textContent = formatRp(data.total_bersih);
             
-            // Footer Date (Dynamically uses the 19th + Selected Period Name)
             document.getElementById('slip-date').textContent = `19 ${data.periodName}`;
         }
 
-        // Print Functionality
         document.getElementById('btn-print').addEventListener('click', () => {
             if (document.getElementById('slip-container').classList.contains('hidden')) {
                 showToast("Pilih periode gaji terlebih dahulu sebelum mencetak.", "error");
