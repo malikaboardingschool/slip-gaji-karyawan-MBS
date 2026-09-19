@@ -644,10 +644,6 @@
         }
 
         document.getElementById('btn-publish').addEventListener('click', async () => {
-            if (!firestoreUser || !db) {
-                showToast("Koneksi database belum siap. Coba lagi.", "error");
-                return;
-            }
             if (parsedExcelData.length === 0) {
                 showToast("Tidak ada data untuk disimpan.", "error");
                 return;
@@ -658,53 +654,97 @@
             btn.textContent = "Menyimpan...";
 
             try {
-                // Rule 1: Strict Paths -> /artifacts/{appId}/public/data/salaries
-                const salariesRef = collection(db, 'artifacts', appId, 'public', 'data', 'salaries');
-                const batch = writeBatch(db); // Use batch for multiple writes
-
-                parsedExcelData.forEach(item => {
-                    // Unique ID: periodId_nipmis
-                    const docId = `${currentUploadPeriodId}_${item.nipmis}`;
-                    const docRef = doc(salariesRef, docId);
+                // FALLBACK: Gunakan LocalStorage jika Firestore belum siap di sesi ini
+                if (!firestoreUser || !db) {
+                    let localSalaries = JSON.parse(localStorage.getItem('mbs_salaries') || '[]');
+                    let localPeriods = JSON.parse(localStorage.getItem('mbs_periods') || '[]');
                     
-                    const payload = {
-                        periodId: currentUploadPeriodId,
-                        periodName: currentUploadPeriodName,
-                        nipmis: item.nipmis,
-                        nama: item.nama,
-                        status: item.status,
-                        amanah: item.amanah,
-                        gaji_pokok: item.gaji_pokok,
-                        transport_hari: item.transport_hari,
-                        transport_rate: item.transport_rate,
-                        transport_total: item.transport_total,
-                        tunj_bpjs: item.tunj_bpjs,
-                        koreksi: item.koreksi,
-                        total_pendapatan: item.total_pendapatan,
-                        pot_bpjs: item.pot_bpjs,
-                        cicilan: item.cicilan,
-                        total_potongan: item.total_potongan,
-                        total_bersih: item.total_bersih,
-                        timestamp: new Date().toISOString()
-                    };
+                    parsedExcelData.forEach(item => {
+                        const payload = {
+                            periodId: currentUploadPeriodId,
+                            periodName: currentUploadPeriodName,
+                            nipmis: item.nipmis,
+                            nama: item.nama,
+                            status: item.status,
+                            amanah: item.amanah,
+                            gaji_pokok: item.gaji_pokok,
+                            transport_hari: item.transport_hari,
+                            transport_rate: item.transport_rate,
+                            transport_total: item.transport_total,
+                            tunj_bpjs: item.tunj_bpjs,
+                            koreksi: item.koreksi,
+                            total_pendapatan: item.total_pendapatan,
+                            pot_bpjs: item.pot_bpjs,
+                            cicilan: item.cicilan,
+                            total_potongan: item.total_potongan,
+                            total_bersih: item.total_bersih,
+                            timestamp: new Date().toISOString()
+                        };
+                        // Hapus data lama dengan NIPMIS & Periode yang sama (jika ada timpa ulang)
+                        localSalaries = localSalaries.filter(s => !(s.periodId === currentUploadPeriodId && s.nipmis === item.nipmis));
+                        localSalaries.push(payload);
+                    });
                     
-                    batch.set(docRef, payload);
-                });
+                    localStorage.setItem('mbs_salaries', JSON.stringify(localSalaries));
+                    
+                    // Simpan metadata periode
+                    localPeriods = localPeriods.filter(p => p.id !== currentUploadPeriodId);
+                    localPeriods.push({
+                        id: currentUploadPeriodId, 
+                        name: currentUploadPeriodName,
+                        count: parsedExcelData.length,
+                        date: new Date().toISOString()
+                    });
+                    localStorage.setItem('mbs_periods', JSON.stringify(localPeriods));
 
-                await batch.commit();
+                    showToast("Data berhasil dipublikasikan! (Mode Lokal Tersimpan)", "success");
+                    
+                } else {
+                    // MODE FIRESTORE: Jika database cloud aktif
+                    const salariesRef = collection(db, 'artifacts', appId, 'public', 'data', 'salaries');
+                    const batch = writeBatch(db);
 
-                // Save period metadata (optional but helpful for history)
-                const periodsRef = doc(db, 'artifacts', appId, 'public', 'data', 'periods', currentUploadPeriodId);
-                await setDoc(periodsRef, { 
-                    id: currentUploadPeriodId, 
-                    name: currentUploadPeriodName,
-                    count: parsedExcelData.length,
-                    date: new Date().toISOString()
-                });
+                    parsedExcelData.forEach(item => {
+                        const docId = `${currentUploadPeriodId}_${item.nipmis}`;
+                        const docRef = doc(salariesRef, docId);
+                        
+                        const payload = {
+                            periodId: currentUploadPeriodId,
+                            periodName: currentUploadPeriodName,
+                            nipmis: item.nipmis,
+                            nama: item.nama,
+                            status: item.status,
+                            amanah: item.amanah,
+                            gaji_pokok: item.gaji_pokok,
+                            transport_hari: item.transport_hari,
+                            transport_rate: item.transport_rate,
+                            transport_total: item.transport_total,
+                            tunj_bpjs: item.tunj_bpjs,
+                            koreksi: item.koreksi,
+                            total_pendapatan: item.total_pendapatan,
+                            pot_bpjs: item.pot_bpjs,
+                            cicilan: item.cicilan,
+                            total_potongan: item.total_potongan,
+                            total_bersih: item.total_bersih,
+                            timestamp: new Date().toISOString()
+                        };
+                        batch.set(docRef, payload);
+                    });
 
-                showToast("Data gaji berhasil dipublikasikan!", "success");
-                
-                // Reset form
+                    await batch.commit();
+
+                    const periodsRef = doc(db, 'artifacts', appId, 'public', 'data', 'periods', currentUploadPeriodId);
+                    await setDoc(periodsRef, { 
+                        id: currentUploadPeriodId, 
+                        name: currentUploadPeriodName,
+                        count: parsedExcelData.length,
+                        date: new Date().toISOString()
+                    });
+
+                    showToast("Data gaji berhasil dipublikasikan!", "success");
+                }
+
+                // Reset form setelah sukses
                 parsedExcelData = [];
                 document.getElementById('preview-section').classList.add('hidden');
                 document.getElementById('excel-file').value = "";
@@ -720,58 +760,75 @@
             }
         });
 
+        function renderHistoryListUI(docs) {
+            const list = document.getElementById('history-list');
+            const msg = document.getElementById('no-history-msg');
+            list.innerHTML = "";
+            
+            if (!docs || docs.length === 0) {
+                msg.classList.remove('hidden');
+                return;
+            }
+            
+            msg.classList.add('hidden');
+            docs.sort((a,b) => new Date(b.date) - new Date(a.date));
+            
+            docs.forEach(data => {
+                const el = document.createElement('div');
+                el.className = "flex justify-between items-center p-3 bg-gray-50 rounded border border-gray-100";
+                el.innerHTML = `
+                    <div>
+                        <p class="font-bold text-gray-800">${data.name}</p>
+                        <p class="text-xs text-gray-500">${data.count} Karyawan tersimpan</p>
+                    </div>
+                    <span class="bg-emerald-100 text-emerald-800 text-xs font-semibold px-2.5 py-0.5 rounded">Terkirim</span>
+                `;
+                list.appendChild(el);
+            });
+        }
+
         // Load History for Admin
         function loadHistory() {
-            if (!firestoreUser || !db) return;
+            if (!db || !firestoreUser) {
+                // Ambil dari LocalStorage jika offline/local mode
+                const localPeriods = JSON.parse(localStorage.getItem('mbs_periods') || '[]');
+                renderHistoryListUI(localPeriods);
+                return;
+            }
             
             const periodsRef = collection(db, 'artifacts', appId, 'public', 'data', 'periods');
             
             onSnapshot(periodsRef, (snapshot) => {
-                const list = document.getElementById('history-list');
-                const msg = document.getElementById('no-history-msg');
-                list.innerHTML = "";
-                
-                if (snapshot.empty) {
-                    msg.classList.remove('hidden');
-                    return;
-                }
-                
-                msg.classList.add('hidden');
                 const docs = [];
                 snapshot.forEach(doc => docs.push(doc.data()));
-                
-                // Sort by date descending (in memory)
-                docs.sort((a,b) => new Date(b.date) - new Date(a.date));
-                
-                docs.forEach(data => {
-                    const el = document.createElement('div');
-                    el.className = "flex justify-between items-center p-3 bg-gray-50 rounded border border-gray-100";
-                    el.innerHTML = `
-                        <div>
-                            <p class="font-bold text-gray-800">${data.name}</p>
-                            <p class="text-xs text-gray-500">${data.count} Karyawan tersimpan</p>
-                        </div>
-                        <span class="bg-emerald-100 text-emerald-800 text-xs font-semibold px-2.5 py-0.5 rounded">Terkirim</span>
-                    `;
-                    list.appendChild(el);
-                });
+                renderHistoryListUI(docs);
             }, (error) => {
                 console.error("History fetch error:", error);
             });
         }
 
         function fetchEmployeeData() {
-            if (!firestoreUser || !db || !currentUserId) return;
+            if (!currentUserId) return;
+
+            if (!db || !firestoreUser) {
+                // Ambil dari LocalStorage jika offline/local mode
+                const localSalaries = JSON.parse(localStorage.getItem('mbs_salaries') || '[]');
+                allPublishedSalaries = localSalaries.filter(data => {
+                    const isNipmisMatch = data.nipmis === currentUserId;
+                    const isNameMatch = data.nama && data.nama.toLowerCase().includes(currentUserId.toLowerCase());
+                    return isNipmisMatch || isNameMatch;
+                });
+                populateEmployeePeriods();
+                return;
+            }
             
-            // Rule 2: No complex queries. Fetch all salaries, filter in memory.
+            // Mode Firestore
             const salariesRef = collection(db, 'artifacts', appId, 'public', 'data', 'salaries');
             
             getDocs(salariesRef).then((snapshot) => {
                 allPublishedSalaries = [];
                 snapshot.forEach(doc => {
                     const data = doc.data();
-                    
-                    // Match by NIPMIS OR by checking if Name is included in the string
                     const isNipmisMatch = data.nipmis === currentUserId;
                     const isNameMatch = data.nama && data.nama.toLowerCase().includes(currentUserId.toLowerCase());
                     
