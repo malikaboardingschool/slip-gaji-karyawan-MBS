@@ -67,9 +67,9 @@
             <div class="flex justify-between h-16">
                 <div class="flex items-center">
                     <div class="flex-shrink-0 flex items-center gap-2">
-                        <!-- Placeholder for Logo -->
-                        <div class="w-8 h-8 bg-white rounded-full flex items-center justify-center text-emerald-700 font-bold text-sm">MBS</div>
-                        <span class="font-bold text-lg hidden sm:block">MBS Care Payroll</span>
+                        <!-- Logo MBS -->
+                        <img src="https://iili.io/FsLlXA7.png" alt="Logo MBS" class="w-10 h-10 object-contain bg-white rounded-full p-0.5 shadow-sm">
+                        <span class="font-bold text-lg hidden sm:block">MBS Payroll</span>
                     </div>
                 </div>
                 <div class="flex items-center gap-4">
@@ -112,8 +112,8 @@
             </div>
 
             <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                <h2 class="text-lg font-semibold mb-4 border-b pb-2">Upload Data Gaji Bulanan</h2>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                <h2 class="text-lg font-semibold mb-4 border-b pb-2">Sumber Data Gaji Bulanan</h2>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end mb-6">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Periode Bulan</label>
                         <select id="upload-month" class="w-full border-gray-300 border rounded-md shadow-sm px-3 py-2 focus:ring-emerald-500 focus:border-emerald-500">
@@ -134,14 +134,30 @@
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Tahun</label>
                         <select id="upload-year" class="w-full border-gray-300 border rounded-md shadow-sm px-3 py-2 focus:ring-emerald-500 focus:border-emerald-500">
-                            <option value="2024">2024</option>
-                            <option value="2025">2025</option>
                             <option value="2026" selected>2026</option>
+                            <option value="2027">2027</option>
+                            <option value="2028">2028</option>
+                            <option value="2029">2029</option>
+                            <option value="2030">2030</option>
+                            <option value="2031">2031</option>
+                            <option value="2032">2032</option>
+                            <option value="2033">2033</option>
+                            <option value="2034">2034</option>
                         </select>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">File Excel Data Gaji</label>
-                        <input type="file" id="excel-file" accept=".xlsx, .xls, .csv" class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100 border border-gray-300 rounded-md">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Tanggal Cetak Slip</label>
+                        <input type="date" id="upload-date" class="w-full border-gray-300 border rounded-md shadow-sm px-3 py-2 focus:ring-emerald-500 focus:border-emerald-500">
+                    </div>
+                </div>
+
+                <!-- Opsi 1: Google Sheets -->
+                <div class="bg-emerald-50 p-4 rounded-lg border border-emerald-100 mb-4">
+                    <label class="block text-sm font-semibold text-emerald-800 mb-2">Tarik Data Gaji Bulanan (Google Sheets)</label>
+                    <p class="text-xs text-emerald-600 mb-3">Pastikan pengaturan berbagi Google Sheets Anda sudah diset ke <strong>"Siapa saja yang memiliki link (Viewer)"</strong>.</p>
+                    <div class="flex gap-2">
+                        <input type="text" id="gsheet-link" placeholder="Tempel URL/Link Google Sheets di sini..." class="flex-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-emerald-500 focus:border-emerald-500 text-sm">
+                        <button id="btn-fetch-gsheet" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded text-sm font-semibold transition">Tarik Data</button>
                     </div>
                 </div>
                 
@@ -213,9 +229,10 @@
             <!-- THE SLIP TEMPLATE (Matches provided PDF exactly) -->
             <div id="slip-container" class="hidden bg-white p-8 sm:p-12 shadow-lg max-w-3xl mx-auto border border-gray-300 slip-font">
                 <!-- Header -->
-                <div class="text-center font-bold mb-8">
-                    <h2 class="text-xl leading-tight">SLIP GAJI PEGAWAI</h2>
-                    <h3 class="text-lg leading-tight">Yayasan Malika Islamic Boarding School</h3>
+                <div class="relative text-center font-bold mb-8 border-b-4 border-double border-gray-800 pb-4">
+                    <img src="https://iili.io/FsLlXA7.png" alt="Logo MBS" class="absolute left-0 top-1 w-20 h-20 object-contain">
+                    <h2 class="text-2xl leading-tight uppercase tracking-wide">Slip Gaji Pegawai</h2>
+                    <h3 class="text-lg leading-tight mt-1">Yayasan Malika Islamic School</h3>
                     <p class="text-base font-normal mt-1">Bulan <span id="slip-period">September 2026</span> M.</p>
                 </div>
 
@@ -269,20 +286,29 @@
                         <span id="slip-potongan">0</span>
                     </div>
 
-                    <!-- Total -->
-                    <div class="flex justify-between items-center py-4 mt-6 border-t-2 border-b-2 border-black font-bold text-lg">
+                    <!-- Sisa Gaji (Bersih) -->
+                    <div class="flex justify-between py-3 font-bold mt-6 border-y-2 border-black text-lg">
                         <span>SISA GAJI DITERIMA</span>
                         <span id="slip-total-bersih">0</span>
                     </div>
-                </div>
 
-                <!-- Signatures -->
-                <div class="mt-12 flex justify-end text-sm sm:text-base">
-                    <div class="text-center">
-                        <p>Tangerang, <span id="slip-date">19 September 2026</span></p>
-                        <p>Bendahara</p>
-                        <img src="ttd-bendahara.png" alt="Tanda Tangan Bendahara" class="h-16 mx-auto my-1 object-contain">
-                        <p class="font-bold underline decoration-1 underline-offset-4">H. Pepep Taufiq</p>
+                    <!-- Signatures -->
+                    <div class="mt-12 flex justify-end text-sm sm:text-base">
+                        <div class="text-center w-48 relative">
+                            <p>Tangerang, <span id="slip-date">19 September 2026</span></p>
+                            <p class="mb-2">Bendahara</p>
+                            
+                            <!-- Adjusted Signature Area -->
+                            <div class="relative h-16 sm:h-20 w-full flex justify-center items-center my-1">
+                                <img src="https://iili.io/nTCOMAu.png" 
+                                     onerror="this.src='https://placehold.co/200x100/ffffff/000000?text=Tanda+Tangan'" 
+                                     alt="Tanda Tangan Bendahara" 
+                                     class="absolute max-w-none w-[75px] sm:w-[90px] h-auto object-contain z-0"
+                                     style="top: 50%; left: 50%; transform: translate(-50%, -50%); mix-blend-mode: multiply;">
+                            </div>
+    
+                            <p class="font-bold underline decoration-1 underline-offset-4 relative z-10 bg-white/60 inline-block px-1">H. Pepep Taufiq</p>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -340,11 +366,33 @@
 
         const formatRp = (num) => new Intl.NumberFormat('id-ID').format(num || 0);
         
+        // Mengisi nilai default tanggal cetak menjadi hari ini
+        const setupDefaultDate = () => {
+            const dateInput = document.getElementById('upload-date');
+            if (dateInput) {
+                const today = new Date();
+                const yyyy = today.getFullYear();
+                const mm = String(today.getMonth() + 1).padStart(2, '0');
+                const dd = String(today.getDate()).padStart(2, '0');
+                dateInput.value = `${yyyy}-${mm}-${dd}`;
+            }
+        };
+        setupDefaultDate();
+
+        // Pemurnian Angka Agresif: Tangani titik (format ribuan indo), koma, dan spasi
         const cleanNumber = (val) => {
             if(typeof val === 'number') return val;
             if(!val) return 0;
-            return parseInt(val.toString().replace(/[^0-9-]/g, ''), 10) || 0;
-        }
+            // Hapus semua titik, koma, dan karakter non-digit selain minus
+            const stringVal = val.toString().replace(/Rp/gi, '').replace(/\./g, '').replace(/,/g, '').replace(/ /g, '');
+            return parseInt(stringVal, 10) || 0;
+        };
+
+        // Fungsi Pembersih Nama: Hapus semua spasi dan tanda baca agar pencocokan 100% aman
+        const normalizeName = (nameStr) => {
+            if(!nameStr) return "";
+            return nameStr.toLowerCase().replace(/[^a-z0-9]/g, '');
+        };
 
         const initAuth = async () => {
             try {
@@ -406,7 +454,6 @@
             switchView('login');
             parsedExcelData = [];
             document.getElementById('preview-section').classList.add('hidden');
-            if (document.getElementById('excel-file')) document.getElementById('excel-file').value = "";
             showToast("Berhasil logout", "success");
         });
 
@@ -455,114 +502,116 @@
             showToast("Template berhasil diunduh.", "success");
         });
 
-        document.getElementById('excel-file').addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
+        // FUNGSI MEMPROSES DATA JSON (DARI EXCEL MAUPUN GSHEETS)
+        function processData(json) {
+            if (!json || json.length === 0) {
+                showToast("Data kosong atau format salah!", "error");
+                return;
+            }
 
-            const reader = new FileReader();
-            reader.onload = (event) => {
-                try {
-                    const data = new Uint8Array(event.target.result);
-                    const workbook = XLSX.read(data, { type: 'array' });
-                    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-                    const json = XLSX.utils.sheet_to_json(worksheet);
-                    
-                    if (json.length === 0) {
-                        showToast("File Excel kosong!", "error");
-                        return;
+            parsedExcelData = json.map(row => {
+                const getVal = (keys) => {
+                    for(let k of keys) {
+                        if(row[k] !== undefined) return cleanNumber(row[k]);
                     }
+                    return 0;
+                };
 
-                    parsedExcelData = json.map(row => {
-                        const getVal = (keys) => {
-                            for(let k of keys) {
-                                if(row[k] !== undefined) return cleanNumber(row[k]);
-                            }
-                            return 0;
-                        };
-
-                        const gaji_pokok = getVal(["Gaji Pokok"]);
-                        const transport_hari = getVal(["Transport Kehadiran", "Hari Transport", "Hari"]);
-                        
-                        // Menangani kolom merged cell pada Excel (dimana header rate dan total transport kosong/hidden)
-                        // SheetJS otomatis menamai kolom kosong dengan __EMPTY dan __EMPTY_1
-                        let transport_rate = getVal(["Rate Transport", "Rate"]);
-                        if (transport_rate === 0 && row["__EMPTY"] !== undefined) {
-                            transport_rate = cleanNumber(row["__EMPTY"]);
-                        }
-                        
-                        let transport_total = getVal(["Total Transport"]);
-                        if (transport_total === 0 && row["__EMPTY_1"] !== undefined) {
-                            transport_total = cleanNumber(row["__EMPTY_1"]);
-                        }
-                        
-                        // Validasi silang matematika agar 100% aman
-                        if (transport_total === 0 && transport_hari > 0 && transport_rate > 0) {
-                            transport_total = transport_hari * transport_rate;
-                        }
-                        if (transport_rate === 0 && transport_hari > 0 && transport_total > 0) {
-                            transport_rate = Math.floor(transport_total / transport_hari);
-                        }
-
-                        const tunj_bpjs = getVal(["Tunj. BPJS TK", "Tunj BPJS TK"]);
-                        const koreksi = getVal(["Koreksi"]);
-                        
-                        // PENDAPATAN KOTOR (Coba ambil dari Excel, jika gagal hitung otomatis)
-                        let total_pendapatan = getVal(["Pendapatan"]);
-                        const kalkulasi_pendapatan = gaji_pokok + transport_total + tunj_bpjs + koreksi;
-                        if (total_pendapatan === 0 || total_pendapatan !== kalkulasi_pendapatan) {
-                            total_pendapatan = kalkulasi_pendapatan;
-                        }
-
-                        // POTONGAN
-                        const pot_bpjs = getVal(["Potongan BPJS TK", "Pot BPJS TK"]);
-                        const cicilan = getVal(["Cicilan"]);
-                        
-                        let total_potongan = getVal(["Potongan"]);
-                        const kalkulasi_potongan = pot_bpjs + cicilan;
-                        if (total_potongan === 0 || total_potongan !== kalkulasi_potongan) {
-                            total_potongan = kalkulasi_potongan;
-                        }
-
-                        // SISA GAJI BERSIH
-                        let total_bersih = getVal(["Jumlah"]);
-                        const kalkulasi_bersih = total_pendapatan - total_potongan;
-                        if (total_bersih === 0 || total_bersih !== kalkulasi_bersih) {
-                            total_bersih = kalkulasi_bersih;
-                        }
-
-                        return {
-                            nipmis: String(row["NIPMIS"] || ""),
-                            nama: row["Nama"] || "Tanpa Nama",
-                            status: row["Status"] || "-",
-                            amanah: row["Amanah"] || "-",
-                            gaji_pokok,
-                            transport_hari,
-                            transport_rate,
-                            transport_total,
-                            tunj_bpjs,
-                            koreksi,
-                            total_pendapatan,
-                            pot_bpjs,
-                            cicilan,
-                            total_potongan,
-                            total_bersih
-                        };
-                    });
-
-                    if (parsedExcelData.length === 0) {
-                        showToast("Format kolom tidak sesuai.", "error");
-                        return;
-                    }
-
-                    renderPreviewTable();
-                    showToast(`${parsedExcelData.length} data berhasil dibaca & dihitung ualng.`, "success");
-
-                } catch (error) {
-                    console.error(error);
-                    showToast("Gagal membaca file Excel. Pastikan format benar.", "error");
+                const gaji_pokok = getVal(["Gaji Pokok"]);
+                const transport_hari = getVal(["Transport Kehadiran", "Hari Transport", "Hari"]);
+                
+                let transport_rate = getVal(["Rate Transport", "Rate"]);
+                if (transport_rate === 0 && row["__EMPTY"] !== undefined) {
+                    transport_rate = cleanNumber(row["__EMPTY"]);
                 }
-            };
-            reader.readAsArrayBuffer(file);
+                
+                let transport_total = getVal(["Total Transport"]);
+                if (transport_total === 0 && row["__EMPTY_1"] !== undefined) {
+                    transport_total = cleanNumber(row["__EMPTY_1"]);
+                }
+                
+                if (transport_total === 0 && transport_hari > 0 && transport_rate > 0) {
+                    transport_total = transport_hari * transport_rate;
+                }
+                if (transport_rate === 0 && transport_hari > 0 && transport_total > 0) {
+                    transport_rate = Math.floor(transport_total / transport_hari);
+                }
+
+                const tunj_bpjs = getVal(["Tunj. BPJS TK", "Tunj BPJS TK"]);
+                const koreksi = getVal(["Koreksi"]);
+                
+                // Kalkulasi Matematika Pasti
+                const total_pendapatan = gaji_pokok + transport_total + tunj_bpjs + koreksi;
+                const pot_bpjs = getVal(["Potongan BPJS TK", "Pot BPJS TK"]);
+                const cicilan = getVal(["Cicilan"]);
+                const total_potongan = pot_bpjs + cicilan;
+                const total_bersih = total_pendapatan - total_potongan;
+
+                return {
+                    nipmis: String(row["NIPMIS"] || ""),
+                    nama: row["Nama"] || "Tanpa Nama",
+                    status: row["Status"] || "-",
+                    amanah: row["Amanah"] || "-",
+                    gaji_pokok,
+                    transport_hari,
+                    transport_rate,
+                    transport_total,
+                    tunj_bpjs,
+                    koreksi,
+                    total_pendapatan,
+                    pot_bpjs,
+                    cicilan,
+                    total_potongan,
+                    total_bersih
+                };
+            });
+
+            renderPreviewTable();
+            showToast(`${parsedExcelData.length} data berhasil dibaca & dihitung ulang.`, "success");
+        }
+
+        // FETCH DARI GOOGLE SHEETS
+        document.getElementById('btn-fetch-gsheet').addEventListener('click', async () => {
+            const link = document.getElementById('gsheet-link').value.trim();
+            if (!link) {
+                showToast("Masukkan link Google Sheets terlebih dahulu!", "error");
+                return;
+            }
+
+            // Ekstrak ID Spreadsheet dari URL
+            const idMatch = link.match(/\/d\/([a-zA-Z0-9-_]+)/);
+            if (!idMatch || idMatch.length < 2) {
+                showToast("Link Google Sheets tidak valid.", "error");
+                return;
+            }
+            const sheetId = idMatch[1];
+            
+            const btn = document.getElementById('btn-fetch-gsheet');
+            btn.disabled = true;
+            btn.textContent = "Menarik Data...";
+
+            try {
+                // Mengambil data Google Sheets dalam format CSV
+                const csvUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv`;
+                const response = await fetch(csvUrl);
+                
+                if (!response.ok) throw new Error("Gagal akses. Pastikan file di-share 'Anyone with the link'.");
+                
+                const csvText = await response.text();
+                
+                // Parsing CSV menggunakan SheetJS
+                const workbook = XLSX.read(csvText, { type: 'string' });
+                const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+                const json = XLSX.utils.sheet_to_json(worksheet);
+                
+                processData(json);
+            } catch (error) {
+                console.error(error);
+                showToast(error.message, "error");
+            } finally {
+                btn.disabled = false;
+                btn.textContent = "Tarik Data";
+            }
         });
 
         function renderPreviewTable() {
@@ -604,6 +653,10 @@
             btn.disabled = true;
             btn.textContent = "Menyimpan Data...";
 
+            // Ambil tanggal slip dari form Bendahara
+            const slipDateInput = document.getElementById('upload-date').value;
+            const slipDate = slipDateInput ? slipDateInput : new Date().toISOString().split('T')[0];
+
             try {
                 if (isCloudMode) {
                     if (!firestoreUser) {
@@ -615,13 +668,14 @@
                     const batch = writeBatch(db);
 
                     parsedExcelData.forEach(item => {
-                        // ID unik per slip: tahun-bulan_namakaryawan (hilangkan spasi)
-                        const cleanName = item.nama.replace(/[^a-zA-Z0-9]/g, '').toLowerCase() || `noname-${Math.random()}`;
+                        // Gunakan nama yang dinormalisasi untuk ID dokumen
+                        const cleanName = normalizeName(item.nama) || `noname-${Math.random()}`;
                         const docId = `${currentUploadPeriodId}_${cleanName}`;
                         const docRef = doc(salariesRef, docId);
                         batch.set(docRef, {
                             periodId: currentUploadPeriodId, 
                             periodName: currentUploadPeriodName,
+                            slipDate: slipDate, // Simpan tanggal cetak ke database
                             ...item, 
                             timestamp: new Date().toISOString()
                         });
@@ -637,35 +691,10 @@
                     });
 
                     showToast("Berhasil! Data telah tersinkronisasi ke Cloud secara real-time.", "success");
-                } else {
-                    // MODE OFFLINE (LOKAL)
-                    const localSalaries = JSON.parse(localStorage.getItem('mbs_salaries') || '[]');
-                    const localPeriods = JSON.parse(localStorage.getItem('mbs_periods') || '[]');
-                    
-                    const periodIndex = localPeriods.findIndex(p => p.id === currentUploadPeriodId);
-                    const newPeriod = { id: currentUploadPeriodId, name: currentUploadPeriodName, count: parsedExcelData.length, date: new Date().toISOString() };
-                    if (periodIndex > -1) localPeriods[periodIndex] = newPeriod;
-                    else localPeriods.push(newPeriod);
-                    
-                    parsedExcelData.forEach(item => {
-                        const cleanName = item.nama.replace(/[^a-zA-Z0-9]/g, '').toLowerCase() || `noname-${Math.random()}`;
-                        const docId = `${currentUploadPeriodId}_${cleanName}`;
-                        const index = localSalaries.findIndex(s => s.docId === docId);
-                        const newDoc = { docId, periodId: currentUploadPeriodId, periodName: currentUploadPeriodName, ...item, timestamp: new Date().toISOString() };
-                        if (index > -1) localSalaries[index] = newDoc;
-                        else localSalaries.push(newDoc);
-                    });
-
-                    localStorage.setItem('mbs_salaries', JSON.stringify(localSalaries));
-                    localStorage.setItem('mbs_periods', JSON.stringify(localPeriods));
-                    
-                    showToast("Berhasil disimpan ke Penyimpanan Lokal (Offline).", "success");
-                    loadHistory(); // Update tampilan riwayat manual
                 }
 
                 parsedExcelData = [];
                 document.getElementById('preview-section').classList.add('hidden');
-                document.getElementById('excel-file').value = "";
 
             } catch (error) {
                 console.error("Publish Error:", error);
@@ -759,9 +788,10 @@
                 docs = JSON.parse(localStorage.getItem('mbs_salaries') || '[]');
             }
 
-            // Cari data yang cocok dengan nama akun karyawan
+            // Cari data yang cocok dengan nama akun karyawan yang dinormalisasi
+            const normalizedUserId = normalizeName(currentUserId);
             allPublishedSalaries = docs.filter(data => {
-                return data.nama && data.nama.toLowerCase().includes(currentUserId.toLowerCase());
+                return data.nama && normalizeName(data.nama).includes(normalizedUserId);
             });
             
             populateEmployeePeriods();
@@ -830,7 +860,18 @@
             document.getElementById('slip-potongan').textContent = formatRp(data.total_potongan);
             document.getElementById('slip-total-bersih').textContent = formatRp(data.total_bersih);
             
-            document.getElementById('slip-date').textContent = `19 ${data.periodName}`;
+            // Format Tanggal Cetak Slip yang ditarik dari database
+            let dateObj = new Date();
+            if (data.slipDate) {
+                // Memecah "YYYY-MM-DD" agar zona waktu lokal tetap aman
+                const parts = data.slipDate.split('-');
+                if (parts.length === 3) {
+                    dateObj = new Date(parts[0], parts[1] - 1, parts[2]);
+                }
+            }
+            
+            const dateOptions = { day: 'numeric', month: 'long', year: 'numeric' };
+            document.getElementById('slip-date').textContent = dateObj.toLocaleDateString('id-ID', dateOptions);
         }
 
         document.getElementById('btn-download').addEventListener('click', () => {
