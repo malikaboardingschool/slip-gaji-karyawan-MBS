@@ -301,6 +301,7 @@
         
         let app, db, auth, firestoreUser = null;
         let isFirebaseReady = false;
+        let isCloudMode = false; // Mode tracking
         
         let currentUserRole = null; // 'admin' | 'employee'
         let currentUserId = null;   // NIPMIS for employee
@@ -358,7 +359,7 @@
                 console.log("Cloud Database Terhubung.");
             } catch (error) {
                 console.error("Auth error:", error);
-                showToast("Gagal terhubung ke Cloud. Pastikan koneksi internet stabil.", "error");
+                showToast("Koneksi Cloud terkendala, namun Anda tetap bisa mencoba mode lokal.", "info");
             }
         };
 
@@ -366,10 +367,15 @@
             app = initializeApp(firebaseConfig);
             db = getFirestore(app);
             auth = getAuth(app);
+            isCloudMode = true;
             initAuth();
         } else {
             console.warn("Konfigurasi Cloud tidak ditemukan.");
-            showToast("Sistem Cloud belum diatur. Gagal memuat aplikasi.", "error");
+            isCloudMode = false;
+            // Delay toast slightly so it's visible after UI loads
+            setTimeout(() => {
+                showToast("Mode Lokal Aktif (Offline). Data tidak akan tersinkron antar HP.", "info");
+            }, 1000);
         }
 
         const views = {
@@ -596,55 +602,81 @@
 
             const btn = document.getElementById('btn-publish');
             btn.disabled = true;
-            btn.textContent = "Menyimpan ke Cloud...";
+            btn.textContent = "Menyimpan Data...";
 
             try {
-                if (!firestoreUser) {
-                    await initAuth();
-                    if (!firestoreUser) throw new Error("Akses Cloud ditolak.");
+                if (isCloudMode) {
+                    if (!firestoreUser) {
+                        await initAuth();
+                        if (!firestoreUser) throw new Error("Akses Cloud ditolak.");
+                    }
+
+                    const salariesRef = collection(db, 'artifacts', appId, 'public', 'data', 'salaries');
+                    const batch = writeBatch(db);
+
+                    parsedExcelData.forEach(item => {
+                        // ID unik per slip: tahun-bulan_namakaryawan (hilangkan spasi)
+                        const cleanName = item.nama.replace(/[^a-zA-Z0-9]/g, '').toLowerCase() || `noname-${Math.random()}`;
+                        const docId = `${currentUploadPeriodId}_${cleanName}`;
+                        const docRef = doc(salariesRef, docId);
+                        batch.set(docRef, {
+                            periodId: currentUploadPeriodId, 
+                            periodName: currentUploadPeriodName,
+                            ...item, 
+                            timestamp: new Date().toISOString()
+                        });
+                    });
+
+                    await batch.commit();
+
+                    // Simpan rekap periode
+                    const periodsRef = doc(db, 'artifacts', appId, 'public', 'data', 'periods', currentUploadPeriodId);
+                    await setDoc(periodsRef, { 
+                        id: currentUploadPeriodId, name: currentUploadPeriodName,
+                        count: parsedExcelData.length, date: new Date().toISOString()
+                    });
+
+                    showToast("Berhasil! Data telah tersinkronisasi ke Cloud secara real-time.", "success");
+                } else {
+                    // MODE OFFLINE (LOKAL)
+                    const localSalaries = JSON.parse(localStorage.getItem('mbs_salaries') || '[]');
+                    const localPeriods = JSON.parse(localStorage.getItem('mbs_periods') || '[]');
+                    
+                    const periodIndex = localPeriods.findIndex(p => p.id === currentUploadPeriodId);
+                    const newPeriod = { id: currentUploadPeriodId, name: currentUploadPeriodName, count: parsedExcelData.length, date: new Date().toISOString() };
+                    if (periodIndex > -1) localPeriods[periodIndex] = newPeriod;
+                    else localPeriods.push(newPeriod);
+                    
+                    parsedExcelData.forEach(item => {
+                        const cleanName = item.nama.replace(/[^a-zA-Z0-9]/g, '').toLowerCase() || `noname-${Math.random()}`;
+                        const docId = `${currentUploadPeriodId}_${cleanName}`;
+                        const index = localSalaries.findIndex(s => s.docId === docId);
+                        const newDoc = { docId, periodId: currentUploadPeriodId, periodName: currentUploadPeriodName, ...item, timestamp: new Date().toISOString() };
+                        if (index > -1) localSalaries[index] = newDoc;
+                        else localSalaries.push(newDoc);
+                    });
+
+                    localStorage.setItem('mbs_salaries', JSON.stringify(localSalaries));
+                    localStorage.setItem('mbs_periods', JSON.stringify(localPeriods));
+                    
+                    showToast("Berhasil disimpan ke Penyimpanan Lokal (Offline).", "success");
+                    loadHistory(); // Update tampilan riwayat manual
                 }
 
-                const salariesRef = collection(db, 'artifacts', appId, 'public', 'data', 'salaries');
-                const batch = writeBatch(db);
-
-                parsedExcelData.forEach(item => {
-                    // ID unik per slip: tahun-bulan_namakaryawan (hilangkan spasi)
-                    const cleanName = item.nama.replace(/[^a-zA-Z0-9]/g, '').toLowerCase() || `noname-${Math.random()}`;
-                    const docId = `${currentUploadPeriodId}_${cleanName}`;
-                    const docRef = doc(salariesRef, docId);
-                    batch.set(docRef, {
-                        periodId: currentUploadPeriodId, 
-                        periodName: currentUploadPeriodName,
-                        ...item, 
-                        timestamp: new Date().toISOString()
-                    });
-                });
-
-                await batch.commit();
-
-                // Simpan rekap periode
-                const periodsRef = doc(db, 'artifacts', appId, 'public', 'data', 'periods', currentUploadPeriodId);
-                await setDoc(periodsRef, { 
-                    id: currentUploadPeriodId, name: currentUploadPeriodName,
-                    count: parsedExcelData.length, date: new Date().toISOString()
-                });
-
-                showToast("Berhasil! Data telah tersinkronisasi ke Cloud secara real-time.", "success");
                 parsedExcelData = [];
                 document.getElementById('preview-section').classList.add('hidden');
                 document.getElementById('excel-file').value = "";
-                // History otomatis dimuat ulang oleh onSnapshot
 
             } catch (error) {
                 console.error("Publish Error:", error);
-                showToast("Gagal menyimpan ke Cloud: " + error.message, "error");
+                showToast("Gagal menyimpan data: " + error.message, "error");
             } finally {
                 btn.disabled = false;
                 btn.textContent = "Simpan & Publikasikan ke Karyawan";
             }
         });
 
-        function renderHistoryListUI(docs) {
+        function renderHistoryListUI(docs, isFromCloud = true) {
             const list = document.getElementById('history-list');
             const msg = document.getElementById('no-history-msg');
             list.innerHTML = "";
@@ -660,62 +692,80 @@
             docs.forEach(data => {
                 const el = document.createElement('div');
                 el.className = "flex justify-between items-center p-3 bg-gray-50 rounded border border-gray-100";
+                
+                const badge = isFromCloud 
+                    ? `<span class="bg-emerald-100 text-emerald-800 text-xs font-semibold px-2.5 py-0.5 rounded">Cloud</span>`
+                    : `<span class="bg-amber-100 text-amber-800 text-xs font-semibold px-2.5 py-0.5 rounded">Lokal Offline</span>`;
+
                 el.innerHTML = `
                     <div>
                         <p class="font-bold text-gray-800">${data.name}</p>
-                        <p class="text-xs text-gray-500">${data.count} Karyawan tersinkronisasi ke Cloud</p>
+                        <p class="text-xs text-gray-500">${data.count} Karyawan tersimpan</p>
                     </div>
-                    <span class="bg-emerald-100 text-emerald-800 text-xs font-semibold px-2.5 py-0.5 rounded">Real-time</span>
+                    ${badge}
                 `;
                 list.appendChild(el);
             });
         }
 
         function loadHistory() {
-            if (!firestoreUser) return;
-            const periodsRef = collection(db, 'artifacts', appId, 'public', 'data', 'periods');
-            
-            // onSnapshot memantau data Cloud secara langsung
-            onSnapshot(periodsRef, (snapshot) => {
-                const docs = [];
-                snapshot.forEach(doc => docs.push(doc.data()));
-                renderHistoryListUI(docs);
-            }, (error) => {
-                console.error("History fetch error:", error);
-                showToast("Gagal memuat riwayat dari Cloud", "error");
-            });
+            if (isCloudMode) {
+                if (!firestoreUser) return;
+                const periodsRef = collection(db, 'artifacts', appId, 'public', 'data', 'periods');
+                
+                // onSnapshot memantau data Cloud secara langsung
+                onSnapshot(periodsRef, (snapshot) => {
+                    const docs = [];
+                    snapshot.forEach(doc => docs.push(doc.data()));
+                    renderHistoryListUI(docs, true);
+                }, (error) => {
+                    console.error("History fetch error:", error);
+                    showToast("Gagal memuat riwayat dari Cloud", "error");
+                });
+            } else {
+                // Mode Lokal
+                const docs = JSON.parse(localStorage.getItem('mbs_periods') || '[]');
+                renderHistoryListUI(docs, false);
+            }
         }
 
         async function fetchEmployeeData() {
             if (!currentUserId) return;
             
-            document.getElementById('slip-empty-state').textContent = "Mengambil data dari Cloud...";
+            document.getElementById('slip-empty-state').textContent = "Mengambil data...";
 
-            if (!firestoreUser) {
-                await initAuth();
+            let docs = [];
+
+            if (isCloudMode) {
                 if (!firestoreUser) {
-                    showToast("Koneksi Cloud terputus.", "error");
+                    await initAuth();
+                    if (!firestoreUser) {
+                        showToast("Koneksi Cloud terputus.", "error");
+                        return;
+                    }
+                }
+                try {
+                    const salariesRef = collection(db, 'artifacts', appId, 'public', 'data', 'salaries');
+                    const snapshot = await getDocs(salariesRef);
+                    snapshot.forEach(doc => docs.push(doc.data()));
+                } catch (e) {
+                    console.error("Fetch employee data error:", e);
+                    showToast("Gagal memuat data slip dari Cloud", "error");
+                    document.getElementById('slip-empty-state').textContent = "Gagal memuat data.";
                     return;
                 }
+            } else {
+                // Mode Lokal
+                docs = JSON.parse(localStorage.getItem('mbs_salaries') || '[]');
             }
 
-            const salariesRef = collection(db, 'artifacts', appId, 'public', 'data', 'salaries');
-            getDocs(salariesRef).then((snapshot) => {
-                const docs = [];
-                snapshot.forEach(doc => docs.push(doc.data()));
-                
-                // Cari data yang cocok dengan nama akun karyawan
-                allPublishedSalaries = docs.filter(data => {
-                    return data.nama && data.nama.toLowerCase().includes(currentUserId.toLowerCase());
-                });
-                
-                populateEmployeePeriods();
-                document.getElementById('slip-empty-state').textContent = "Pilih periode gaji di atas untuk melihat slip gaji Anda.";
-            }).catch((error) => {
-                console.error("Fetch employee data error:", error);
-                showToast("Gagal memuat data slip dari Cloud", "error");
-                document.getElementById('slip-empty-state').textContent = "Gagal memuat data.";
+            // Cari data yang cocok dengan nama akun karyawan
+            allPublishedSalaries = docs.filter(data => {
+                return data.nama && data.nama.toLowerCase().includes(currentUserId.toLowerCase());
             });
+            
+            populateEmployeePeriods();
+            document.getElementById('slip-empty-state').textContent = "Pilih periode gaji di atas untuk melihat slip gaji Anda.";
         }
 
         function populateEmployeePeriods() {
