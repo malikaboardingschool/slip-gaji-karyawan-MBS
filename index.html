@@ -69,7 +69,7 @@
                     <div class="flex-shrink-0 flex items-center gap-2">
                         <!-- Logo MBS -->
                         <img src="https://iili.io/FsLlXA7.png" alt="Logo MBS" class="w-10 h-10 object-contain bg-white rounded-full p-0.5 shadow-sm">
-                        <span class="font-bold text-lg hidden sm:block">MBS Care Payroll</span>
+                        <span class="font-bold text-lg hidden sm:block">MBS Payroll</span>
                     </div>
                 </div>
                 <div class="flex items-center gap-4">
@@ -418,10 +418,12 @@
                     firestoreUser = userCred.user;
                 }
                 isFirebaseReady = true;
+                isCloudMode = true;
                 console.log("Cloud Database Terhubung.");
             } catch (error) {
                 console.error("Auth error:", error);
-                showToast("Koneksi ditolak! Pastikan 'Anonymous Auth' sudah diaktifkan di Firebase Console Anda.", "error");
+                // Menampilkan kode error asli dari Firebase agar mudah didiagnosis
+                showToast("Akses Cloud Ditolak: " + error.code, "error");
                 isCloudMode = false;
             }
         };
