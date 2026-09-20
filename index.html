@@ -69,7 +69,7 @@
                     <div class="flex-shrink-0 flex items-center gap-2">
                         <!-- Logo MBS -->
                         <img src="https://iili.io/FsLlXA7.png" alt="Logo MBS" class="w-10 h-10 object-contain bg-white rounded-full p-0.5 shadow-sm">
-                        <span class="font-bold text-lg hidden sm:block">MBS Payroll</span>
+                        <span class="font-bold text-lg hidden sm:block">MBS Care Payroll</span>
                     </div>
                 </div>
                 <div class="flex items-center gap-4">
@@ -321,13 +321,27 @@
         import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, getDocs, doc, setDoc, onSnapshot, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Global Variables & State
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'mbs-payroll-app';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        // Konfigurasi Firebase Resmi MBS Payroll
+        const firebaseConfig = {
+            apiKey: "AIzaSyAI6Zu4ZpLVYqqH2CN_37uVhc8nWepanV8",
+            authDomain: "mbs-payroll.firebaseapp.com",
+            projectId: "mbs-payroll",
+            storageBucket: "mbs-payroll.firebasestorage.app",
+            messagingSenderId: "213609520642",
+            appId: "1:213609520642:web:49ca3a1a21ae9197a9511b",
+            measurementId: "G-WET5810T7K"
+        };
         
-        let app, db, auth, firestoreUser = null;
+        const appId = 'mbs-payroll-live'; 
+        
+        // Inisialisasi Otomatis
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+        
+        let firestoreUser = null;
         let isFirebaseReady = false;
-        let isCloudMode = false; // Mode tracking
+        let isCloudMode = true;
         
         let currentUserRole = null; // 'admin' | 'employee'
         let currentUserId = null;   // NIPMIS for employee
@@ -407,24 +421,13 @@
                 console.log("Cloud Database Terhubung.");
             } catch (error) {
                 console.error("Auth error:", error);
-                showToast("Koneksi Cloud terkendala, namun Anda tetap bisa mencoba mode lokal.", "info");
+                showToast("Koneksi ditolak! Pastikan 'Anonymous Auth' sudah diaktifkan di Firebase Console Anda.", "error");
+                isCloudMode = false;
             }
         };
 
-        if (Object.keys(firebaseConfig).length > 0) {
-            app = initializeApp(firebaseConfig);
-            db = getFirestore(app);
-            auth = getAuth(app);
-            isCloudMode = true;
-            initAuth();
-        } else {
-            console.warn("Konfigurasi Cloud tidak ditemukan.");
-            isCloudMode = false;
-            // Delay toast slightly so it's visible after UI loads
-            setTimeout(() => {
-                showToast("Mode Lokal Aktif (Offline). Data tidak akan tersinkron antar HP.", "info");
-            }, 1000);
-        }
+        // Jalankan koneksi saat pertama kali dimuat
+        initAuth();
 
         const views = {
             login: document.getElementById('view-login'),
